@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Version 1.5.0** adds a session log with individual run reports, recorded dungeon maps and a way to continue a saved session. [Validation details](VALIDATION.md)
+**Version 1.6.0** confirms dungeon transfers before logging a run, identifies Watcher giants from their equipment, and renders archived maps from dungeon data. [Validation details](VALIDATION.md)
 
-[Download v1.5.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.5.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.6.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.6.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Put `skyblock-frag-runs-1.5.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.6.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -34,7 +34,7 @@ Open **F9 → Session log** and select a session by its local start time. **Runs
 
 Select a run to see its duration, start and end times, exit reason, giant, fragment result and profit breakdown. **Itemized loot** includes quantities, kill coins, shards, direct essence and the estimated salvage value of gear. Saved quantities use current prices and your tax and salvage settings. If a single hub essence update covers multiple runs, the shared gain appears in the session total.
 
-**Dungeon map** shows the latest layout recorded for that run. With StellaNav or Skyblocker drawing the map, the mod captures its visible rooms, colors, labels and icons at your HUD position and scale. When neither provides a capture, it can save the server's Magical Map. Runs with no map data show **Map not recorded**. Older sessions retain their run times, giants, drops and session-wide loot. Per-run item details and map recording start with v1.5.
+**Dungeon map** redraws the run from saved game data. With StellaNav enabled, the report draws the discovered room shapes, connecting doors, colors and configured labels and checkmarks. With the server's Magical Map, it renders the map tiles and decorations. Recording works while the HUD is hidden or a screen is open. The interactive report uses layouts recorded in v1.6 and later. Older reports show the historical fields that were saved at the time.
 
 Choose **Continue session** while in a world to resume from the saved elapsed time. Subsequent runs and loot join the same entry. If another session is active, **Save and switch** archives it first and records an unfinished run as partial.
 
@@ -51,7 +51,7 @@ The design uses original drawing code with the SkyblockAddons palette: cyan `#A0
 ## What the counters mean
 
 - **Session time** measures elapsed time while running, including time between dungeons. Pausing freezes both clocks. Resuming in the same dungeon continues its run. Leaving a dungeon while paused records its tracked portion as partial.
-- **Current run** starts on arrival in the dungeon world after a Floor VII announcement, or when the sidebar or tab list identifies normal F7. It stops when you leave. Starting a session midway through a detected F7 times from activation.
+- **Current run** starts when the destination confirms normal Floor VII. After a queued warp, its clock includes the time since arrival in that dungeon. A brief inherited scoreboard row or a proxy loading world cannot create a run by itself. Starting a session midway through a detected F7 times from activation.
 - **Total, fastest, slowest, last, average:** all recorded exits, including early resets. The current run enters these statistics when it ends.
 - **Finished giant encounter:** the giant was identified and its death, matching fragment pickup, or Watcher clear was observed before leaving. Merely seeing a giant and leaving early does not count toward giant statistics. Disconnects and manually stopping inside the dungeon are partial runs.
 - **Giant share:** that giant's finished encounters divided by all finished giant encounters.
@@ -113,7 +113,7 @@ Files live under the instance's `config/fragruns/` directory:
 - `session.json`: checkpoint saved every 10 seconds and on stop/disconnect/shutdown.
 - `session.json.bak`: previous checkpoint.
 - `history/*.json`: archived sessions.
-- `maps/<run-id>.png` holds the most recent recorded map for each run.
+- `maps/<run-id>.json` holds the room layout or server map palette and decorations for that run.
 - `prices.json`: last good price cache.
 
 Writes replace files atomically when supported. An explicitly paused session can resume after restarting Minecraft. A live session recovered after interruption opens as stopped, and its unfinished run is retained as partial up to the latest checkpoint. Offline time is excluded.

@@ -22,8 +22,10 @@ public final class Signals {
     /** Classify only complete server location rows. Missing and partially rebuilt sidebars are common. */
     public static Area area(List<String> lines) {
         Area result = Area.UNKNOWN;
+        boolean dungeonHud=false;
         for (String raw : lines) {
             String line = SCORE_DECORATION.matcher(clean(raw)).replaceAll("").strip();
+            if (line.startsWith("Time Elapsed: ") || line.startsWith("Cleared: ") && line.endsWith("%")) dungeonHud=true;
             Matcher floor = FLOOR.matcher(line);
             if (floor.matches()) {
                 boolean seven = floor.group(2) == null ? isSeven(floor.group(4))
@@ -38,7 +40,7 @@ public final class Signals {
                         || name.equals("Private Island") || name.equals("Your Island")) result = Area.OUTSIDE;
             }
         }
-        return result;
+        return result==Area.UNKNOWN && dungeonHud?Area.DUNGEON:result;
     }
     /** A server banner may have separator lines. Player chat mentioning a floor is not an entry. */
     public static Area announcedFloor(String raw) {

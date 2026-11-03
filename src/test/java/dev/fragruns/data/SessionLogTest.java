@@ -3,7 +3,6 @@ package dev.fragruns.data;
 import dev.fragruns.core.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
@@ -120,14 +119,14 @@ class SessionLogTest {
         session.start(); session.enterDungeon(); UUID old=session.currentRunId();
         session.stop(); store.archiveChecked(session); session.start(); session.enterDungeon();
         UUID kept=session.currentRunId(); session.leaveDungeon("Warp",false); session.enterDungeon(); UUID current=session.currentRunId();
-        int[] pixels={0xff00ff00,0xff102030,0xffcc0011,0};
-        for (UUID id:List.of(old,kept,current)) maps.save(id,epoch,pixels,2,2);
-        store.clearHistory(session); maps.save(old,epoch,pixels,2,2);
-        assertThrows(IOException.class,()->maps.open(old));
-        for (UUID id:List.of(kept,current)) try (var in=maps.open(id)) {
-            var png=ImageIO.read(in); assertArrayEquals(pixels,png.getRGB(0,0,2,2,null,0,2));
-        }
-        session.stop(); store.clearHistory(session); assertThrows(IOException.class,()->maps.open(kept));
-        assertThrows(IOException.class,()->maps.save(old,maps.generation(),pixels,513,1));
+        var room=new DungeonLayout.Room(List.of(0,1),0xffaa0022,"Blood","WHITE");
+        var layout=new DungeonLayout(1,"",List.of(room),List.of(new DungeonLayout.Door(0,1,0xff606060)),List.of());
+        for (UUID id:List.of(old,kept,current)) maps.save(id,epoch,layout);
+        Files.write(directory.resolve("maps/"+old+".png"),new byte[]{1});
+        store.clearHistory(session); maps.save(old,epoch,layout);
+        assertThrows(IOException.class,()->maps.read(old)); assertFalse(maps.hasLegacyImage(old));
+        for (UUID id:List.of(kept,current)) assertEquals(layout,maps.read(id));
+        session.stop(); store.clearHistory(session); assertThrows(IOException.class,()->maps.read(kept));
+        assertThrows(IllegalArgumentException.class,()->new DungeonLayout(1,"bad",List.of(),List.of(),List.of()));
     }
 }

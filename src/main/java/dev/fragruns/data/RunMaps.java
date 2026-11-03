@@ -1,63 +1,57 @@
 package dev.fragruns.data;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Set;
 import java.util.UUID;
-import javax.imageio.ImageIO;
 
-/** One replaceable PNG per run. An encoder finishing after Clear cannot resurrect a deleted map. */
+/** Store one independent room layout per run. A late write cannot resurrect a cleared archive. */
 public final class RunMaps {
-    public static final int MAX_SIZE = 512;
     private final Path directory;
     private long generation;
-
-    public RunMaps(Path directory) { this.directory = directory; }
+    public RunMaps(Path directory) { this.directory=directory; }
     public synchronized long generation() { return generation; }
     private void checkFolder() throws IOException {
         if (Files.exists(directory,LinkOption.NOFOLLOW_LINKS) && !Files.isDirectory(directory,LinkOption.NOFOLLOW_LINKS))
             throw new IOException("Unexpected map folder");
     }
-    public InputStream open(UUID run) throws IOException {
+    public DungeonLayout read(UUID run) throws IOException {
         checkFolder();
-        Path path = directory.resolve(run+".png");
-        if (!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS)) throw new NoSuchFileException(path.toString());
-        return Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS);
+        Path file=directory.resolve(run+".json");
+        if (!Files.isRegularFile(file,LinkOption.NOFOLLOW_LINKS)) throw new NoSuchFileException(file.toString());
+        if (Files.size(file)>262_144) throw new IOException("Map exceeds size limit");
+        return JsonFiles.read(file,DungeonLayout.class);
     }
-    public void save(UUID run,long expected,int[] argb,int width,int height) throws IOException {
-        if (width <= 0 || height <= 0 || width > MAX_SIZE || height > MAX_SIZE || argb.length != width*height)
-            throw new IOException("Invalid map dimensions");
-        checkFolder();
-        Files.createDirectories(directory);
-        var image = new BufferedImage(width,height,BufferedImage.TYPE_INT_ARGB);
-        image.setRGB(0,0,width,height,argb,0,width);
-        Path temporary = Files.createTempFile(directory,"capture-",".tmp");
+    public boolean hasLegacyImage(UUID run) {
+        return Files.isDirectory(directory,LinkOption.NOFOLLOW_LINKS)
+                && Files.isRegularFile(directory.resolve(run+".png"),LinkOption.NOFOLLOW_LINKS);
+    }
+    public void save(UUID run,long expected,DungeonLayout layout) throws IOException {
+        checkFolder(); Files.createDirectories(directory);
+        Path temp=Files.createTempFile(directory,"layout-",".tmp");
         try {
-            try (var output = Files.newOutputStream(temporary)) {
-                if (!ImageIO.write(image,"png",output)) throw new IOException("PNG encoder unavailable");
+            Files.writeString(temp,JsonFiles.GSON.toJson(layout),StandardCharsets.UTF_8);
+            synchronized(this) {
+                if (generation!=expected) return;
+                Path dest=directory.resolve(run+".json");
+                try { Files.move(temp,dest,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE); }
+                catch (AtomicMoveNotSupportedException e) { Files.move(temp,dest,StandardCopyOption.REPLACE_EXISTING); }
             }
-            synchronized (this) {
-                if (expected != generation) return;
-                Path dest = directory.resolve(run+".png");
-                try { Files.move(temporary,dest,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE); }
-                catch (AtomicMoveNotSupportedException e) { Files.move(temporary,dest,StandardCopyOption.REPLACE_EXISTING); }
-            }
-        } finally { Files.deleteIfExists(temporary); }
+        } finally { Files.deleteIfExists(temp); }
     }
     public synchronized void clearExcept(Set<UUID> keep) throws IOException {
-        generation++;
-        checkFolder();
+        generation++; checkFolder();
         if (!Files.isDirectory(directory)) return;
-        try (var paths = Files.newDirectoryStream(directory,"*.png")) {
-            for (Path p : paths) {
-                String name = p.getFileName().toString();
+        try (var paths=Files.newDirectoryStream(directory)) {
+            for (Path file:paths) {
+                String name=file.getFileName().toString();
+                if (!name.endsWith(".json") && !name.endsWith(".png")) continue;
+                String stem=name.substring(0,name.lastIndexOf('.'));
                 UUID id;
-                try { id = UUID.fromString(name.substring(0,name.length()-4)); }
-                catch (IllegalArgumentException e) { continue; }
-                if (name.equals(id+".png") && !keep.contains(id) && Files.isRegularFile(p,LinkOption.NOFOLLOW_LINKS))
-                    Files.deleteIfExists(p);
+                try { id=UUID.fromString(stem); } catch (IllegalArgumentException e) { continue; }
+                if (stem.equals(id.toString()) && !keep.contains(id) && Files.isRegularFile(file,LinkOption.NOFOLLOW_LINKS))
+                    Files.deleteIfExists(file);
             }
         }
     }

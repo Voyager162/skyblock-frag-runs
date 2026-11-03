@@ -1,17 +1,13 @@
 package dev.fragruns.ui;
 
-import com.mojang.blaze3d.platform.NativeImage;
 import dev.fragruns.FragRunsClient;
 import dev.fragruns.core.LootLedger;
 import dev.fragruns.core.Session;
-import dev.fragruns.data.RunMaps;
 import dev.fragruns.data.SessionStore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.ConfirmScreen;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 import java.io.IOException;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -22,7 +18,6 @@ import java.util.concurrent.CompletionException;
 final class SessionLog {
     private enum View { LIST, RUNS, SUMMARY, LOOT, RUN, RUN_LOOT, MAP }
     private static final DateTimeFormatter DATE=DateTimeFormatter.ofPattern("MMM d, uuuu  HH:mm:ss").withZone(ZoneId.systemDefault());
-    private static final Identifier TEXTURE=Identifier.fromNamespaceAndPath("fragruns","session_log/map");
     private final DashboardScreen screen;
     private final FragRunsClient mod;
     private View view=View.LIST;
@@ -34,7 +29,8 @@ final class SessionLog {
     private int listPage,runsPage,index;
     private Session.Details loadedDetails;
     private LootLedger runLoot;
-    private boolean texture,attempted;
+    private DungeonDiagram diagram;
+    private boolean attempted,legacyImage;
     private long retryMapAt;
 
     SessionLog(DashboardScreen screen,FragRunsClient mod) { this.screen=screen; this.mod=mod; }
@@ -243,28 +239,24 @@ final class SessionLog {
     }
     private void map(GuiGraphicsExtractor g,Session.Run r,int x,int y,int width,int height,boolean large) {
         Theme.panel(g,x,y,width,height); Theme.text(g,"DUNGEON MAP",x+11,y+12,Theme.BLUE);
-        if (r.details()!=null && !texture && (!attempted || System.nanoTime()>=retryMapAt)) loadMap(r.details().id());
+        if (r.details()!=null && diagram==null && (!attempted || System.nanoTime()>=retryMapAt)) loadMap(r.details().id());
         int size=large?200:190, cx=x+width/2, top=y+29;
         Theme.round(g,cx-size/2-2,top-2,size+4,size+4,0xFF151823);
-        if (texture) g.blit(TEXTURE,cx-size/2,top,cx-size/2+size,top+size,0,1,0,1);
+        if (diagram!=null) diagram.draw(g,cx-size/2,top,size);
         else {
-            Theme.centered(g,"Map not recorded",cx,top+size/2-7,Theme.MUTED);
-            Theme.centered(g,r.details()==null?"Saved before v1.5":"No map received for this run",cx,top+size/2+9,Theme.MUTED);
+            Theme.centered(g,"Room layout unavailable",cx,top+size/2-7,Theme.MUTED);
+            Theme.centered(g,legacyImage || r.details()==null?"Recorded by an older version":"No map received for this run",cx,top+size/2+9,Theme.MUTED);
         }
     }
     private void loadMap(UUID id) {
         attempted=true;
         retryMapAt=System.nanoTime()+5_000_000_000L;
-        try (var input=mod.store().maps().open(id)) {
-            var image=NativeImage.read(input);
-            if (image.getWidth()>RunMaps.MAX_SIZE || image.getHeight()>RunMaps.MAX_SIZE) { image.close();return; }
-            Minecraft.getInstance().getTextureManager().register(TEXTURE,new DynamicTexture(()->"Saved dungeon map",image));
-            texture=true;
-        } catch (IOException e) { /* Older, missing and unfinished captures have an explicit empty state. */ }
+        try { diagram=new DungeonDiagram(mod.store().maps().read(id)); }
+        catch (IOException e) { legacyImage=mod.store().maps().hasLegacyImage(id); }
     }
     void releaseMap() {
-        if (texture) Minecraft.getInstance().getTextureManager().release(TEXTURE);
-        texture=false; attempted=false;
+        if (diagram!=null) diagram.close();
+        diagram=null; attempted=false; legacyImage=false;
     }
     private void empty(GuiGraphicsExtractor g,String title,String help) {
         Theme.panel(g,14,82,522,236);

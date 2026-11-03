@@ -1,19 +1,20 @@
-# Validation — version 1.5.0
+# Validation — version 1.6.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**126 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**133 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
 | Session | 22 | Entry/exit timing, active and paused clocks, pause/resume inside one run, double presses from either state, the inclusive 1.5-second boundary, key repeats, run statistics, partial stops, and recovery |
 | Accounting | 20 | Pickup/inventory reconciliation, expiring credits, exact pre-run and post-run purse balances, transaction exclusions, interrupted or late returns, coin losses, pricing, salvage, and seven-category profit breakdown |
 | Giant drops | 3 | Carried stacks reappearing across a warp or moving during a kill, matching-encounter evidence, and delayed packet/inventory delivery in both orders |
+| Watcher equipment | 5 | Generic names, partial equipment packets, cycling and static dye, no-drop kills, early exits, fragment confirmation and another giant appearing after a kill |
 | Hunting Box | 4 | Product aliases, personal reward messages, old balances, manual deposits, message/balance reconciliation, pause boundaries and Bazaar valuation under Other items |
 | Hourly projection | 11 | Average run duration across different speeds, hub downtime, finished share, fixed drop odds, original-mode equivalence, other loot per session hour, zero/live runs, repricing, tax, and restored sessions |
-| Dungeon presence | 5 | Pre-warp multiline banner, real transfer, rebuilt or stale hub sidebar, confirmation after arrival, requeue inside F7, Master Mode, expired or cancelled entry, and disconnect |
+| Dungeon presence | 7 | Queue and destination confirmation, stale return sidebars, zero-, 600- and 800-millisecond transfer flickers, genuine short runs, mid-session starts, requeues, Master Mode and cancelled entries |
 | Essence | 6 | Hub-balance parsing, chat and salvage deductions, partial balances and a single return balance spanning two runs |
 | Layout | 9 | Seven viewport sizes from 320×240 through 3440×1440, multiple scales and anchors, invalid settings, clamping, coordinate round trips |
 | HUD sections | 3 | All 512 visibility selections in each fragment mode, smaller bounds at constrained resolutions, compact resizing, and a fully hidden HUD |
@@ -25,6 +26,16 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.6.0
+
+The packaged mod passed a five-run offline replay in SkyBlock Enhanced on Fabric 26.2. The fixture used server world transfers, ordinary equipment and entity packets, and the same Mort and Watcher message forms seen in gameplay logs.
+
+- Three intermediate worlds produced zero run entries. The five verified visits produced exactly five entries. Unit tests separately replayed 0-, 600- and 800-millisecond stale floor signals and retained a genuine confirmed 600-millisecond run.
+- All four giants had the generic name **Giant**. Diamante and Bigfoot kills with no drop each added one encounter. L.A.S.R.'s changing dye identified it before one Eye arrived. A Jolly Pink sighting followed by an early warp stayed partial, while a later Jolly Pink kill added one encounter and zero fragments.
+- Bigfoot's close-range combat removal arrived without a vanilla death animation. Equipment from a second giant after the kill could not overwrite the recorded result. A separate kill used a damage packet and removal together.
+- With the dashboard covering the HUD, the recorder saved eight StellaNav room footprints, their colors and marks, and a wither door. A different run saved the server's 128 × 128 map palette and decoration. The run detail screens drew each archive, and the map directory contained structured data only.
+- The first client passed 39 replay assertions on Skyblocker 6.10.4. A fresh client with Skyblocker 6.11.0 passed six more. Both map panels redrew pixel for pixel from the archived data after restart. With StellaNav disabled, the second client also recorded a new server map behind the dashboard.
 
 ### Version 1.5.0
 

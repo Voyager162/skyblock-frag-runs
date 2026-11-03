@@ -19,8 +19,6 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.numbers.FixedFormat;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.Display;
-import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.PlayerTeam;
@@ -48,10 +46,11 @@ public final class GameTracker {
     private final EnumMap<Giant,Integer> carriedFragments = new EnumMap<>(Giant.class);
     private Map<String,Integer> previousInventory = new HashMap<>();
     private final Set<String> knownUuids = new HashSet<>();
-    private final Map<Integer,Giant> giantEntities = new HashMap<>();
+    private final WatcherGiants giants;
     private ClientLevel lastLevel;
     private Connection network;
     private boolean transferring;
+    private long transferUntil;
     private boolean inventoryReady;
     private long containerUntil, salvageUntil;
     private boolean bossPhase, watcherAwake;
@@ -60,7 +59,7 @@ public final class GameTracker {
     private long leftAt;
     private int tickCount;
 
-    public GameTracker(Session session, ItemCatalog catalog) { this.session=session; this.catalog=catalog; }
+    public GameTracker(Session session, ItemCatalog catalog) { this.session=session; this.catalog=catalog; this.giants=new WatcherGiants(session); }
     public String location() { return location; }
     public boolean inBossPhase() { return bossPhase; }
     public boolean precisePurse() { return precisePurse; }
@@ -70,7 +69,7 @@ public final class GameTracker {
     public void reset() {
         resetTrackingBaselines();
         knownUuids.clear();
-        giantEntities.clear();
+        giants.reset();
         carriedFragments.clear();
         bossPhase=false;
         watcherAwake=false;
@@ -134,7 +133,8 @@ public final class GameTracker {
             Signals.Area tabArea = Signals.area(tab);
             if (tabArea != Signals.Area.UNKNOWN) area = tabArea;
         }
-        presence.observe(area, now);
+        if (transferring && now>=transferUntil) transferring=false;
+        if (!transferring) presence.observe(area, now);
         boolean f7 = presence.inF7();
         location = f7 ? "The Catacombs • Floor VII" : "Outside Floor VII";
         if (!f7 && !session.inDungeon() && now-leftAt>2_000 && (tab.stream().anyMatch(GameTracker::inHub) || lines.stream().anyMatch(GameTracker::inHub))) {
@@ -146,9 +146,9 @@ public final class GameTracker {
             if (session.paused() && session.inDungeon() && !f7) endRun("Left while paused", true);
             return;
         }
-        if (f7 && !session.inDungeon()) {
+        if (f7 && !transferring && !session.inDungeon()) {
             huntingBox.settle(now,true,this::creditBoxShard);
-            session.enterDungeon();
+            session.enterDungeon(presence.confirmedAge(now));
             essenceBalances.enter();
             purse.enterDungeon(now);
             pickups.reset();
@@ -156,7 +156,7 @@ public final class GameTracker {
             carriedFragments.forEach((giant, held) -> fragments.inventory(giant, held, false));
             carriedFragments.clear();
             inventoryReady = false;
-            giantEntities.clear();
+            giants.reset();
             bossPhase = false;
             watcherAwake = false;
         } else if (!f7 && session.inDungeon()) {
@@ -176,7 +176,7 @@ public final class GameTracker {
         purse.flush(now,false,session.loot()::addCoins);
         if(!session.inDungeon()) return;
         tickCount++;
-        if(!bossPhase && tickCount%2==0) scanGiants(client);
+        if(!bossPhase && !transferring && tickCount%2==0) for (Entity entity:client.level.entitiesForRendering()) giants.observe(client,entity,now,false);
         if(!inventoryReady || tickCount%2==0) scanInventory(client,now);
     }
 
@@ -267,7 +267,7 @@ public final class GameTracker {
         if (interrupted || session.paused()) clearShardBaseline();
         else checkBoxUntil = now() + 60_000;
         leftAt=now();essenceBalances.leave();
-        inventoryReady=false; pickups.reset(); giantEntities.clear();
+        inventoryReady=false; pickups.reset(); giants.reset();
     }
 
     private void scanInventory(Minecraft client,long now) {
@@ -294,7 +294,7 @@ public final class GameTracker {
         boolean trackingGains = inventoryReady && !container && now > containerUntil;
         heldFragments.forEach((giant, held) -> {
             // A server can award a fragment directly even if the giant's name tag was out of render range.
-            boolean encounter = session.currentGiant() == giant || session.currentGiant() == null && watcherAwake;
+            boolean encounter=session.currentGiant()==giant || watcherAwake && (session.currentGiant()==null || session.inferredGiant());
             boolean eligible = trackingGains && !bossPhase && encounter;
             creditFragment(giant, fragments.inventory(giant, held, eligible));
         });
@@ -345,54 +345,29 @@ public final class GameTracker {
         session.loot().addItem(drop.id(),drop.name(),fresh,essence,salvage,definition==null ? 0 : definition.npcPrice());
     }
 
-    private void scanGiants(Minecraft client) {
-        for(Entity entity:client.level.entitiesForRendering()) {
-            // A fragment on the ground (or a player with an unusual name) is not a live giant.
-            String name;
-            if (entity instanceof Display.TextDisplay display && display.textRenderState() != null) {
-                name = Signals.clean(display.textRenderState().text().getString());
-            } else if ((entity instanceof ArmorStand || entity instanceof net.minecraft.world.entity.monster.Giant) && entity.hasCustomName()) {
-                name = Signals.clean(entity.getCustomName().getString());
-            } else continue;
-            Giant type=Giant.fromName(name);
-            if(type==null || name.contains("Handle") || name.contains("Eye") || name.contains("Rock") || name.contains("Bola")) continue;
-            session.observeGiant(type);
-            if(!(entity instanceof net.minecraft.world.entity.monster.Giant living)) {
-                // The label can arrive first. Keep looking until the actual giant spawns beside it.
-                if (!giantEntities.containsValue(type)) {
-                    Entity nearest = null;
-                    double distance = 144;
-                    for (Entity candidate : client.level.entitiesForRendering()) {
-                        if (candidate instanceof net.minecraft.world.entity.monster.Giant && candidate.distanceToSqr(entity) < distance) {
-                            nearest = candidate;
-                            distance = candidate.distanceToSqr(entity);
-                        }
-                    }
-                    if (nearest != null) giantEntities.put(nearest.getId(), type);
-                }
-                if(name.matches(".*(?:\\s|^)(?:0|0/[^ ]+)\\s*[❤♥].*")) session.giantDefeated(type);
-            } else {
-                giantEntities.put(entity.getId(), type);
-                if (living.isDeadOrDying()) session.giantDefeated(type);
-            }
-        }
+    public void entityChanged(Entity entity,boolean death,boolean removed) {
+        var mc=Minecraft.getInstance();
+        if (!trackingEntity(mc,entity)) return;
+        if (removed) giants.removed(mc,entity,now(),watcherAwake);
+        else giants.observe(mc,entity,now(),death);
     }
-
-    public void entityDeath(Entity entity) {
-        if(!session.running() || !session.inDungeon() || entity==null || bossPhase) return;
-        Giant type=giantEntities.get(entity.getId());
-        if(type==null && entity instanceof net.minecraft.world.entity.monster.Giant && entity.hasCustomName()) type=Giant.fromName(entity.getCustomName().getString());
-        if(type!=null) session.giantDefeated(type);
+    public void entityDamaged(Entity entity) {
+        var mc=Minecraft.getInstance();
+        if (trackingEntity(mc,entity)) giants.damaged(mc,entity,now());
     }
-
+    private boolean trackingEntity(Minecraft mc,Entity entity) {
+        return entity!=null && session.running() && session.inDungeon() && !bossPhase && !transferring
+                && mc.player!=null && mc.level==lastLevel && entity.level()==lastLevel;
+    }
     public void serverMessage(Minecraft client, String text) {
         if (client.level == null || !onHypixel(client)) return;
         long now=now();
         syncWorld(client, now);
         String clean=Signals.clean(text);
         presence.announce(Signals.announcedFloor(clean), now);
-        if (clean.startsWith("Sending to server ") && clean.endsWith("...")) {
+        if (clean.equals("Warping...") || clean.startsWith("Sending to server ") && clean.endsWith("...")) {
             transferring = true;
+            transferUntil=now+15_000;
             if (session.running() && client.player != null) {
                 if (session.inDungeon()) scanInventory(client, now);
                 carriedFragments.clear();
@@ -405,8 +380,9 @@ public final class GameTracker {
                 }
             }
         }
-        if (clean.startsWith("[NPC] Mort: ") || clean.startsWith("[BOSS] The Watcher: ")) {
-            presence.observe(Signals.Area.DUNGEON, now);
+        if (clean.startsWith("[NPC] Mort: Here, I found this map") || clean.startsWith("[NPC] Mort: You should find it useful")
+                || clean.equals("[NPC] Mort: Good luck.") || clean.startsWith("[BOSS] The Watcher: ")) {
+            if (!transferring) presence.dungeonMessage(now);
         }
         if (!session.running()) return;
         var shardReceipt = HuntingShards.receipt(clean);
@@ -428,7 +404,8 @@ public final class GameTracker {
             return;
         }
         if(!session.inDungeon()) return;
-        if(clean.startsWith("[BOSS] The Watcher:")) watcherAwake=true;
+        if(clean.startsWith("[BOSS] The Watcher:") || clean.equals("The BLOOD DOOR has been opened!")) watcherAwake=true;
+        if(watcherAwake && clean.startsWith("Your ") && clean.contains(" hit ") && clean.endsWith(" damage.")) giants.combat(now);
         if(clean.startsWith("[BOSS] Maxor:") || clean.startsWith("[BOSS] Storm:")) bossPhase=true;
         if(Signals.watcherCleared(clean)) session.watcherCleared();
         var essence=Signals.essence(clean,now<=salvageUntil);

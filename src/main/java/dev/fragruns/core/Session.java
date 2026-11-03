@@ -39,12 +39,15 @@ public final class Session {
     private static final class ActiveRun {
         final long enteredAt;
         final UUID id = UUID.randomUUID();
-        final long wallStart = System.currentTimeMillis();
+        final long wallStart;
         final LootLedger before = new LootLedger();
         Giant giant;
+        boolean inferred;
         boolean killed;
         int fragments;
-        ActiveRun(long enteredAt, LootLedger loot) { this.enteredAt = enteredAt; before.restore(loot.snapshot()); }
+        ActiveRun(long enteredAt,long wallStart,LootLedger loot) {
+            this.enteredAt=enteredAt; this.wallStart=wallStart; before.restore(loot.snapshot());
+        }
     }
 
     public Session(LongSupplier clock) { this.clock = clock; }
@@ -94,17 +97,27 @@ public final class Session {
         confirmUntil = Long.MIN_VALUE;
     }
 
-    public void enterDungeon() {
-        if (running() && current == null) current = new ActiveRun(elapsedMs(),loot);
+    public void enterDungeon() { enterDungeon(0); }
+    public void enterDungeon(long confirmedAge) {
+        if (!running() || current!=null) return;
+        long backdate=Math.clamp(confirmedAge,0,Math.max(0,clock.getAsLong()-startedAt));
+        current=new ActiveRun(elapsedMs()-backdate,System.currentTimeMillis()-backdate,loot);
     }
 
     public void observeGiant(Giant giant) {
-        if (running() && current != null && giant != null && current.giant == null) current.giant = giant;
+        if (running() && current!=null && giant!=null && (current.giant==null || current.inferred && !current.killed)) {
+            current.giant=giant; current.inferred=false;
+        }
+    }
+    public void observeOutfit(Giant giant) {
+        if (running() && current!=null && !current.killed && giant!=null && (current.giant==null || current.inferred)) {
+            current.giant=giant; current.inferred=true;
+        }
     }
 
     public void giantDefeated(Giant giant) {
         if (!running() || current == null || giant == null) return;
-        observeGiant(giant);
+        if (current.giant!=giant) observeGiant(giant);
         if (current.giant == giant) current.killed = true;
     }
 
@@ -113,7 +126,10 @@ public final class Session {
     }
 
     public void collectFragment(Giant giant, int count) {
-        if (!running() || current == null || count <= 0) return;
+        if (!running() || current == null || giant==null || count <= 0) return;
+        // A collected fragment is direct evidence. Later equipment and labels on other entities are not.
+        if (current.inferred && current.fragments==0) { current.giant=giant; current.inferred=false; }
+        observeGiant(giant);
         giantDefeated(giant);
         if (current.giant == giant) current.fragments += count;
     }
@@ -164,6 +180,7 @@ public final class Session {
     public boolean active() { return state != State.STOPPED; }
     public boolean inDungeon() { return current != null; }
     public Giant currentGiant() { return current == null ? null : current.giant; }
+    public boolean inferredGiant() { return current!=null && current.inferred; }
     public boolean giantKilled() { return current != null && current.killed; }
     public boolean confirmingStop() { return active() && confirmUntil >= clock.getAsLong(); }
     public long confirmRemainingMs() { return confirmingStop() ? Math.max(0, confirmUntil - clock.getAsLong()) : 0; }

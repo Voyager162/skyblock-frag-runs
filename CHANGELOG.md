@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0 — Dungeon transfers, Watcher giants and rendered maps
+
+- Confirm F7 in the destination world before starting a run. Keep the arrival time when confirmed and ignore transient hub or floor rows during transfers.
+- Identify generic-name giants from equipment packets and changing armor dye. Record a defeated giant independently of a fragment pickup, including nearby combat removals without a vanilla death animation.
+- Draw archived maps from saved room footprints, doors, colors and checkmarks, or the server's map palette and decorations. New runs store map data in the profile's `maps` folder. v1.5 image archives have no room model to redraw.
+
 ## 1.5.0 — Session log and dungeon maps
 
 - Browse archived sessions in **F9 → Session log**. Each session has totals, an itemized loot breakdown and a clickable list of runs.
