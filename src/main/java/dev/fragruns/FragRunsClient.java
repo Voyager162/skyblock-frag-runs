@@ -2,6 +2,8 @@ package dev.fragruns;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.fragruns.core.ModConfig;
+import dev.fragruns.core.HourlyProfit;
+import dev.fragruns.core.LootLedger;
 import dev.fragruns.core.PressLatch;
 import dev.fragruns.core.Session;
 import dev.fragruns.data.ItemCatalog;
@@ -104,6 +106,12 @@ public final class FragRunsClient implements ClientModInitializer {
     }
     public void screenKeyReleased(net.minecraft.client.input.KeyEvent event) { if(sessionKey.matches(event)) sessionLatch.release(); }
     public void saveConfig() { store.saveConfig(config); }
+    public double hourlyProfit(LootLedger.Valuation collected) {
+        return HourlyProfit.calculate(session,collected,market.prices().values(),id->{
+            var item=catalog.get(id);return item==null?0:item.npcPrice();
+        },config);
+    }
+    public String version() { return FabricLoader.getInstance().getModContainer("fragruns").orElseThrow().getMetadata().getVersion().getFriendlyString(); }
     public Session session() { return session; }
     public ModConfig config() { return config; }
     public MarketService market() { return market; }

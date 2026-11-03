@@ -55,7 +55,7 @@ public final class FragHud {
         row(g,"Other items",Theme.coins(profit.otherItems()),381,Theme.TEXT);
         g.fill(10,394,WIDTH-10,395,Theme.LINE);
         row(g,"Est. profit",Theme.coins(profit.total()),402,Theme.GOLD);
-        row(g,"Coins / hour",Theme.coins(s.profitPerHour(profit.total())),416,Theme.GREEN);
+        row(g,mod.config().expectedFragmentProfit?"Coins / h (expected)":"Coins / h (collected)",Theme.coins(mod.hourlyProfit(profit)),416,Theme.GREEN);
         if(s.confirmingStop()) {
             Theme.round(g,0,BODY_HEIGHT+3,WIDTH,20,0xF03F2932);
             Theme.fit(g,"Press "+mod.sessionKeyName()+" again to stop",8,BODY_HEIGHT+9,WIDTH-16,Theme.RED,1);

@@ -68,4 +68,21 @@ class DataTest {
         assertThrows(IllegalArgumentException.class,()->s.restore(new Session.Snapshot(1,"bad",-1,java.util.List.of(),original.loot())));
         assertEquals(original,s.snapshot());
     }
+    @Test void newInstallDefaultsToExpectedFragmentIncome() {
+        assertTrue(new SessionStore(directory).loadConfig().expectedFragmentProfit);
+    }
+    @Test void oldSettingsGainExpectedDefaultWithoutLosingOtherPreferences() throws Exception {
+        Files.writeString(directory.resolve("settings.json"),"""
+            {"schema":1,"hud":{"x":0.8,"y":0.2,"scale":1.3},"includeSalvage":false,"bazaarTaxPercent":1.1}
+            """);
+        var store=new SessionStore(directory);var config=store.loadConfig();
+        assertTrue(config.expectedFragmentProfit);assertFalse(config.includeSalvage);
+        assertEquals(0.8,config.hud.x);assertEquals(1.3,config.hud.scale);assertEquals(1.1,config.bazaarTaxPercent);
+        assertTrue(store.warning().isEmpty());
+    }
+    @Test void selectingCollectedModeSurvivesReloadAndCanSwitchBack() {
+        var store=new SessionStore(directory);var config=store.loadConfig();config.expectedFragmentProfit=false;store.saveConfig(config);
+        var restored=store.loadConfig();assertFalse(restored.expectedFragmentProfit);
+        restored.expectedFragmentProfit=true;store.saveConfig(restored);assertTrue(store.loadConfig().expectedFragmentProfit);
+    }
 }

@@ -1,23 +1,35 @@
-# Validation — version 1.0.0
+# Validation — version 1.1.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**76 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**90 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
 | Session | 19 | Entry/exit timing, downtime, fastest/slowest/last/average, early exits, repeated giant observations, drop probabilities, stop confirmation/expiry, rapid separate presses, held-key/duplicate-delivery protection, partial stops, crash checkpoints, stopped-session recovery, reset, hourly profit |
 | Accounting | 18 | Pickup/inventory reconciliation in either order, coalesced pickups, expiring credits, purse baselines, excluded transactions, coin losses, repricing, tax, NPC fallbacks, unknown prices, salvage without double counting, quality lots, invalid values, save round trips, seven-category profit breakdown |
+| Hourly projection | 11 | Fixed probability model, independence from giant/drop luck, original-mode equivalence, non-giant accounting, early exits, zero/live runs, repricing, tax/NPC fallback, invalid quotes, unchanged ledger/statistics, stopped/recovered sessions |
 | Essence | 5 | Hub-balance parsing and reconciliation, chat reward subtraction, salvage receipt subtraction, partial balances, invalidation |
 | Layout | 9 | Seven viewport sizes from 320×240 through 3440×1440, multiple scales and anchors, invalid settings, clamping, coordinate round trips |
 | Signals | 15 | Formatted scoreboard/chat parsing, exact F7 recognition, other-floor/Master Mode rejection, purse precision, essence messages, transaction exclusions |
-| Data | 10 | Public Bazaar order parsing, invalid responses, bundled catalog, item-specific salvage and bonuses, persistence, corrupt-save recovery |
+| Data | 13 | Public Bazaar order parsing, invalid responses, bundled catalog, item-specific salvage and bonuses, persistence, corrupt-save recovery, new-install defaults, 1.0.0 migration, and saved mode selection |
 
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.1.0
+
+- Started the 1.1.0 jar with all 68 copied SkyBlock Enhanced mod jars in the separate test instance.
+- Used an explicitly labeled preview fixture with one elapsed hour, eight finished Bigfoot encounters, no giant-fragment drops, and collected coins/essence/Spirit Leaps.
+- The migrated 1.0.0 settings selected Expected drops by default. The HUD showed about 2.45M coins/hour while collected profit stayed about 698.8k at the observed market prices.
+- The settings button fit in the existing panel and switched immediately to Collected drops. The overview then showed about 698.8k coins/hour, matching the one-hour collected profit, without changing giant/drop counts. The saved configuration recorded `expectedFragmentProfit: false`.
+- Fully restarted Minecraft and confirmed the HUD still used Collected drops. Switching back to Expected drops immediately restored about 2.45M coins/hour while collected profit remained about 698.8k and the observed counts stayed unchanged.
+- Both HUD and overview identify which hourly mode is active. The version badge correctly displays 1.1.0 from Fabric metadata.
+
+### Previous version 1.0.0 checks
 
 - Copied the installed SkyBlock Enhanced profile's **68 mod jars** into a separate workspace test instance and added this mod. Fabric reports 205 mods including nested components.
 - Successfully started the pack and loaded a local Creative world with the built jar. Client packet mixins loaded without a Frag Runs mixin error.
@@ -42,13 +54,14 @@ For that playtest:
 3. Compare collected item quantities and purse changes against the ledger. Inventory rearrangement, selling an item, and salvaging counted gear must not add the same loot again.
 4. With exact essence balances visible in the Dungeon Hub tab list, compare before/after balances. Without those balances, only directly observed essence rewards can be counted reliably.
 5. Check both zero-fragment and fragment-drop runs, a disconnect, and a manual stop inside F7. Interruptions should remain partial.
+6. Switch hourly modes during a session. Expected mode should use fixed probabilities and finished encounters per full session hour; Collected mode should match actual total value divided by session hours. The session's loot ledger and observed drop statistics must stay the same.
 
 Profit is an estimate: purse deltas can include unrecognized transfers, server-only/sack pickups may bypass observed inventory events, and unknown items have no invented price. Auction premiums, consumed supplies, and order-book depth are outside the estimate. The HUD intentionally omits price-cache status messages.
 
 ## Release artifact
 
-`build/libs/skyblock-frag-runs-1.0.0.jar` — 152,646 bytes.
+`build/libs/skyblock-frag-runs-1.1.0.jar` — 155,108 bytes.
 
-SHA-256: `1EFF4B1B22B72DA56BBC725E9E0CBCA3F0D23DD247AB3945B519F34D8AAB9AF0`
+SHA-256: `09C7206CF4C6106F37D3295534EB71E5670B616A70EB2DCD55AF5D8D4D4D13ED`
 
 Install this jar, not the `-sources.jar`. Source code and build files are included in the project workspace.

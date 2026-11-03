@@ -6,6 +6,7 @@ public final class ModConfig {
     public Layout hud = new Layout(0,0.35,0.85);
     public boolean showHud = true;
     public boolean includeSalvage = true;
+    public boolean expectedFragmentProfit = true;
     public boolean showStoppedHud = false;
     public double bazaarTaxPercent = 1.25;
     public int priceRefreshSeconds = 60;

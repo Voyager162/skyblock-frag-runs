@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0 — Expected giant-fragment income
+
+- Added **Settings → Giant fragment profit/h: Expected drops / Collected drops**.
+- Expected drops is the default for new installs and upgrades from 1.0.0. It uses fixed 25% giant spawn and 50% fragment drop probabilities, current prices, and finished encounters per full session hour.
+- Collected drops restores the original hourly calculation. The setting persists across restarts.
+- Only the giant-fragment portion of coins/hour changes. Actual session totals, loot, drop rates, essence, kill coins, and other-item accounting are preserved.
+- HUD and overview identify the active hourly mode; displayed mod version comes from Fabric metadata.
+- Added 14 tests covering probability-based estimates, luck independence, early exits, pricing, tax, salvage, migration, and persistence. All 90 tests pass.
+
+This remains a prerelease pending authenticated Hypixel F7 playtesting.
+
 ## 1.0.0 — Initial prerelease
 
 - Client-only Fabric 26.2 mod with an SBA-inspired movable, resizable HUD.

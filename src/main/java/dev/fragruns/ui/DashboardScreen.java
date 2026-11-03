@@ -49,7 +49,7 @@ public final class DashboardScreen extends Screen {
         Theme.text(g,"FLOOR VII  /  SESSION TRACKER",15,34,Theme.MUTED);
         String badge=Boolean.getBoolean("fragruns.preview") ? "PREVIEW DATA" : s.running() ? "SESSION LIVE" : s.elapsedMs()>0 ? "SESSION SAVED" : "READY TO RUN";
         Theme.right(g,badge,WIDTH-15,16,s.running()?Theme.GREEN:Theme.MUTED);
-        Theme.right(g,"v1.0.0  •  Fabric 26.2",WIDTH-15,32,Theme.MUTED);
+        Theme.right(g,"v"+mod.version()+"  •  Fabric 26.2",WIDTH-15,32,Theme.MUTED);
         String[] tabs={"Overview","Loot & profit","Run history","Settings"};
         for(int i=0;i<tabs.length;i++) {
             final int target=i;
@@ -75,7 +75,8 @@ public final class DashboardScreen extends Screen {
         metric(g,14,"SESSION",Theme.time(s.elapsedMs()),Theme.TEXT,s.running()?"Running":"Session saved");
         metric(g,146,"CURRENT RUN",Theme.time(s.runMs()),Theme.GOLD,s.inDungeon()?"Enter to exit":"Waiting for F7");
         metric(g,278,"EST. PROFIT",Theme.coins(value.total()),Theme.GOLD,"After sell tax");
-        metric(g,410,"COINS / HOUR",Theme.coins(s.profitPerHour(value.total())),Theme.GREEN,"Full session time");
+        metric(g,410,"COINS / HOUR",Theme.coins(mod.hourlyProfit(value)),Theme.GREEN,mod.config().expectedFragmentProfit?"Expected fragments":"Collected drops");
+        if(mouseX>=410&&mouseX<=536&&mouseY>=82&&mouseY<=139) tooltip=hourlyProfitTip();
         Theme.panel(g,14,149,190,169);
         Theme.text(g,"RUN TIMES",25,161,Theme.BLUE);
         stat(g,"Fastest",Theme.time(s.fastest()),183,Theme.GREEN);
@@ -188,9 +189,14 @@ public final class DashboardScreen extends Screen {
         button(g,279,236,28,22,"-",Theme.BLUE,()->{mod.config().bazaarTaxPercent=Math.max(0,mod.config().bazaarTaxPercent-0.05);mod.saveConfig();},"Decrease sell tax by 0.05%",false);
         Theme.centered(g,String.format(Locale.ROOT,"Tax: %.2f%%",mod.config().bazaarTaxPercent),402,243,Theme.TEXT);
         button(g,497,236,28,22,"+",Theme.BLUE,()->{mod.config().bazaarTaxPercent=Math.min(10,mod.config().bazaarTaxPercent+0.05);mod.saveConfig();},"Increase sell tax by 0.05%",false);
-        Theme.fit(g,"Session key: "+mod.sessionKeyName()+" • Rebind in Options > Controls > Key Binds",25,270,500,Theme.MUTED,0.9f);
-        Theme.fit(g,"Open settings: "+mod.dashboardKeyName()+" or /fragruns settings",25,285,500,Theme.MUTED,0.85f);
+        button(g,25,265,500,22,"Giant fragment profit/h: "+(mod.config().expectedFragmentProfit?"Expected drops":"Collected drops"),Theme.BLUE,()->{mod.config().expectedFragmentProfit=!mod.config().expectedFragmentProfit;mod.saveConfig();},hourlyProfitTip(),false);
+        Theme.fit(g,"Session: "+mod.sessionKeyName()+" • Settings: "+mod.dashboardKeyName()+" • Rebind in Options > Controls > Key Binds",25,291,500,Theme.MUTED,0.85f);
         Theme.fit(g,mod.store().warning().isEmpty()?"Two presses within 4 seconds to stop. Esc cancels the confirmation.":mod.store().warning(),25,301,500,mod.store().warning().isEmpty()?Theme.MUTED:Theme.RED,0.85f);
+    }
+    private String hourlyProfitTip() {
+        return mod.config().expectedFragmentProfit
+                ? "Expected: 25% chance per giant x 50% fragment drop x finished runs / session hours. Other loot uses collected values. Totals and drop statistics stay actual. Click in Settings to use collected drops."
+                : "Collected: all collected loot value / full session hours, as in version 1.0.0. Click in Settings to estimate only giant fragments from fixed drop chances.";
     }
     private void button(GuiGraphicsExtractor g,int x,int y,int w,int h,String label,int color,Runnable action,String tip,boolean selected) {
         int index=controls.size();Control c=new Control(x,y,w,h,label,action);controls.add(c);
