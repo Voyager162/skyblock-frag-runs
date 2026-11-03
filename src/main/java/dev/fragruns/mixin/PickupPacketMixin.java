@@ -51,7 +51,8 @@ public abstract class PickupPacketMixin {
     private void fragruns$damage(ClientboundDamageEventPacket packet,CallbackInfo ci) {
         var mc=Minecraft.getInstance();
         if (mc.level!=null && FragRunsClient.INSTANCE!=null && FragRunsClient.INSTANCE.session().inDungeon())
-            FragRunsClient.INSTANCE.tracker().entityDamaged(mc.level.getEntity(packet.entityId()));
+            FragRunsClient.INSTANCE.tracker().entityDamaged(mc.level.getEntity(packet.entityId()),
+                    mc.level.getEntity(packet.sourceCauseId()>=0?packet.sourceCauseId():packet.sourceDirectId()));
     }
     @Inject(method="handleRemoveEntities",at=@At(value="INVOKE",target="Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V",shift=At.Shift.AFTER))
     private void fragruns$removed(ClientboundRemoveEntitiesPacket packet,CallbackInfo ci) {

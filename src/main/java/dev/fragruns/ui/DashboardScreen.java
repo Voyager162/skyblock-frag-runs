@@ -29,7 +29,8 @@ public final class DashboardScreen extends Screen {
     private double mouseX,mouseY;
     private String tooltip;
     private String historyNotice = "";
-    private boolean editingSections;
+    private enum SettingsView { GENERAL, HUD, RUNS }
+    private SettingsView settingsView=SettingsView.GENERAL;
     private record Control(int x,int y,int w,int h,String label,Runnable action) {
         boolean hit(double px,double py) { return px>=x && py>=y && px<x+w && py<y+h; }
     }
@@ -63,7 +64,7 @@ public final class DashboardScreen extends Screen {
             String[] tabs={"Overview","Loot & profit","Session log","Settings"};
             for(int i=0;i<tabs.length;i++) {
                 final int target=i;
-                button(g,14+i*132,51,126,20,tabs[i],tab==i?Theme.BLUE:Theme.MUTED,()->{tab=target;resetPage();editingSections=false;if(tab==2) log.open();},"",tab==i);
+                button(g,14+i*132,51,126,20,tabs[i],tab==i?Theme.BLUE:Theme.MUTED,()->{tab=target;resetPage();settingsView=SettingsView.GENERAL;if(tab==2) log.open();},"",tab==i);
             }
         }
         switch(tab) { case 0->overview(g,s); case 1->loot(g,s.loot()); case 2->log.draw(g,historyNotice); default->settings(g); }
@@ -191,10 +192,11 @@ public final class DashboardScreen extends Screen {
         button(g,506,295,24,20,">",Theme.BLUE,()->page=Math.min(pages-1,page+1),"Next page",false);
     }
     private void settings(GuiGraphicsExtractor g) {
-        if (editingSections) { hudSections(g); return; }
+        if (settingsView==SettingsView.HUD) { hudSections(g); return; }
+        if (settingsView==SettingsView.RUNS) { runSettings(g); return; }
         Theme.panel(g,14,82,254,114);Theme.panel(g,278,82,258,114);
         Theme.text(g,"LAYOUT & APPEARANCE",25,94,Theme.BLUE);
-        button(g,25,114,232,22,"HUD sections…",Theme.BLUE,()->{editingSections=true;focus=-1;},"Choose visible sections and group giant fragment profit.",false);
+        button(g,25,114,232,22,"HUD sections…",Theme.BLUE,()->{settingsView=SettingsView.HUD;focus=-1;},"Choose visible sections and group giant fragment profit.",false);
         button(g,25,142,232,22,"Edit in-game HUD layout",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,true,this)),"Move and resize the overlay you see while playing.",false);
         button(g,25,170,232,20,"Edit dashboard layout",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,false,this)),"Move and resize this menu independently from the HUD.",false);
         Theme.text(g,"DISPLAY",289,94,Theme.BLUE);
@@ -206,13 +208,14 @@ public final class DashboardScreen extends Screen {
         button(g,279,236,28,22,"-",Theme.BLUE,()->{mod.config().bazaarTaxPercent=Math.max(0,mod.config().bazaarTaxPercent-0.05);mod.saveConfig();},"Decrease sell tax by 0.05%",false);
         Theme.centered(g,String.format(Locale.ROOT,"Tax: %.2f%%",mod.config().bazaarTaxPercent),402,243,Theme.TEXT);
         button(g,497,236,28,22,"+",Theme.BLUE,()->{mod.config().bazaarTaxPercent=Math.min(10,mod.config().bazaarTaxPercent+0.05);mod.saveConfig();},"Increase sell tax by 0.05%",false);
-        button(g,25,265,500,22,"Giant fragment profit/h: "+(mod.config().expectedFragmentProfit?"Expected drops":"Collected drops"),Theme.BLUE,()->{mod.config().expectedFragmentProfit=!mod.config().expectedFragmentProfit;mod.saveConfig();},hourlyProfitTip(),false);
+        button(g,25,265,238,22,"Giant profit/h  "+(mod.config().expectedFragmentProfit?"Expected":"Collected"),Theme.BLUE,()->{mod.config().expectedFragmentProfit=!mod.config().expectedFragmentProfit;mod.saveConfig();},hourlyProfitTip(),false);
+        button(g,279,265,246,22,"Run actions & report…",Theme.BLUE,()->{settingsView=SettingsView.RUNS;focus=-1;},"Configure giant-kill travel, solo F7 entry and the timed run report.",false);
         Theme.fit(g,"Session: "+mod.sessionKeyName()+" • Settings: "+mod.dashboardKeyName()+" • Rebind in Options > Controls > Key Binds",25,291,500,Theme.MUTED,0.85f);
         Theme.fit(g,mod.store().warning().isEmpty()?"One press pauses or resumes. Two presses within 1.5 seconds end the session.":mod.store().warning(),25,301,500,mod.store().warning().isEmpty()?Theme.MUTED:Theme.RED,0.85f);
     }
     private void hudSections(GuiGraphicsExtractor g) {
         var settings = mod.config().hudSections;
-        button(g,14,82,90,20,"‹ Settings",Theme.BLUE,()->{editingSections=false;focus=-1;},"Return to general settings.",false);
+        settingsBack(g);
         Theme.text(g,"HUD SECTIONS",116,88,Theme.TEXT);
         Theme.right(g,settings.content().blocks().size()+" / "+Section.values().length+" shown",524,88,Theme.MUTED);
         Theme.panel(g,14,110,254,208);
@@ -235,6 +238,39 @@ public final class DashboardScreen extends Screen {
             mod.saveConfig();
         },"Switch between four collected fragment subtotals and their sum.",false);
         Theme.fit(g,"Applies to HUD and Loot & profit.",289,292,232,Theme.MUTED,0.9f);
+    }
+    private void settingsBack(GuiGraphicsExtractor g) {
+        button(g,14,82,90,20,"‹ Settings",Theme.BLUE,()->{settingsView=SettingsView.GENERAL;focus=-1;},"Return to general settings.",false);
+    }
+    private void runSettings(GuiGraphicsExtractor g) {
+        var c=mod.config();
+        settingsBack(g);Theme.text(g,"RUN ACTIONS & REPORT",116,88,Theme.TEXT);
+        Theme.panel(g,14,110,254,208);Theme.panel(g,278,110,258,208);
+        Theme.text(g,"AUTOMATIC COMMANDS",25,122,Theme.BLUE);
+        runSwitch(g,25,142,"Warp to Dungeon Hub",c.warpOnGiantKill,()->c.warpOnGiantKill=!c.warpOnGiantKill);
+        Theme.fit(g,"After the Watcher giant dies in F7.",26,170,232,Theme.MUTED,1);
+        runSwitch(g,25,191,"Queue solo Floor VII",c.queueSoloF7,()->c.queueSoloF7=!c.queueSoloF7);
+        Theme.fit(g,"On return to the hub during a session.",26,219,232,Theme.MUTED,1);
+        g.fill(25,239,257,240,Theme.LINE);
+        Theme.text(g,"HYPIXEL RULES",25,250,Theme.GOLD);
+        Theme.fit(g,"Hypixel prohibits automated gameplay.",25,268,232,Theme.TEXT,1);
+        Theme.fit(g,"Using either command can lead to a ban.",25,283,232,Theme.MUTED,1);
+        Theme.text(g,"END-OF-RUN REPORT",289,122,Theme.BLUE);
+        runSwitch(g,289,142,"Show run report",c.showRunReport,()->c.showRunReport=!c.showRunReport);
+        Theme.text(g,"Time on screen",289,181,Theme.MUTED);
+        button(g,289,198,32,24,"−",c.reportSeconds>1?Theme.BLUE:Theme.MUTED,()->{c.reportSeconds=Math.max(1,c.reportSeconds-1);mod.saveConfig();},"One second shorter",false);
+        Theme.centered(g,c.reportSeconds+(c.reportSeconds==1?" second":" seconds"),405,206,Theme.TEXT);
+        button(g,489,198,32,24,"+",c.reportSeconds<30?Theme.BLUE:Theme.MUTED,()->{c.reportSeconds=Math.min(30,c.reportSeconds+1);mod.saveConfig();},"One second longer",false);
+        g.fill(289,239,525,240,Theme.LINE);
+        Theme.text(g,"AFTER EACH EXIT",289,250,Theme.BLUE);
+        Theme.fit(g,"Run time, giant, fragment and actual loot.",289,268,234,Theme.TEXT,1);
+        Theme.fit(g,"Reopen the full breakdown in Session log.",289,283,234,Theme.MUTED,1);
+    }
+    private void runSwitch(GuiGraphicsExtractor g,int x,int y,String label,boolean enabled,Runnable toggle) {
+        control(g,x,y,232,22,label,Theme.BLUE,()->{toggle.run();mod.saveConfig();},"",false);
+        Theme.text(g,label,x+8,y+7,Theme.TEXT);
+        Theme.round(g,x+190,y+4,36,14,enabled?0xFF29473E:0xFF363947);
+        Theme.centered(g,enabled?"ON":"OFF",x+208,y+7,enabled?Theme.GREEN:Theme.MUTED);
     }
     private void sectionSwitch(GuiGraphicsExtractor g, int x, int y, Section section) {
         var settings = mod.config().hudSections;
@@ -306,7 +342,7 @@ public final class DashboardScreen extends Screen {
     @Override public boolean keyPressed(KeyEvent e) {
         if(mod.handleScreenKey(e)) return true;
         if(e.key()==GLFW.GLFW_KEY_ESCAPE && mod.session().confirmingStop()) { mod.session().cancelConfirmation();return true; }
-        if(e.key()==GLFW.GLFW_KEY_ESCAPE && editingSections) { editingSections=false;focus=-1;return true; }
+        if(e.key()==GLFW.GLFW_KEY_ESCAPE && settingsView!=SettingsView.GENERAL) { settingsView=SettingsView.GENERAL;focus=-1;return true; }
         if(e.key()==GLFW.GLFW_KEY_ESCAPE && tab==2 && log.inSession()) { log.back();return true; }
         if(e.key()==GLFW.GLFW_KEY_TAB) { focus=Math.floorMod(focus+((e.modifiers()&GLFW.GLFW_MOD_SHIFT)!=0?-1:1),Math.max(1,controls.size())); return true; }
         if((e.key()==GLFW.GLFW_KEY_ENTER||e.key()==GLFW.GLFW_KEY_SPACE)&&focus>=0&&focus<controls.size()) { controls.get(focus).action.run();return true; }

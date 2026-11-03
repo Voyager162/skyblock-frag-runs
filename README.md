@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Version 1.8.0** checks your material stash in the background when you return to the hub after an F7 run. A newly stashed fragment updates the run and its profit before you pick it up. [Validation details](VALIDATION.md)
+**Version 1.9.0** shows a timed profit report when you leave Floor VII. Two independent settings can warp you to the Dungeon Hub after a Watcher giant kill and queue your next solo F7. Both automatic commands start off. [Validation details](VALIDATION.md)
 
-[Download v1.8.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.8.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.9.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.9.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Put `skyblock-frag-runs-1.8.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.9.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -27,6 +27,21 @@ Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or new
 | **`/fragruns session`** | Same session toggle and confirmation as F7. |
 
 Rebind the keys in **Options → Controls → Key Binds → Skyblock Frag Runs**. F7 avoids MarketGuard's F8 HUD editor in SkyBlock Enhanced. Closing the settings/details screen keeps the session running. Stopping hides the HUD unless **Show saved HUD** is enabled. Starting a new session archives the previous one.
+
+## Run actions and report
+
+Open **F9 → Settings → Run actions & report**.
+
+| Setting | Default | What happens |
+| --- | --- | --- |
+| Warp to Dungeon Hub | Off | During a tracked F7, a confirmed nearby Watcher giant death or a collected giant fragment arms a single `/warp dhub`. A 1.5-second delay allows loot to arrive. |
+| Queue solo Floor VII | Off | After leaving a tracked F7, the mod waits for a stable hub, gives stash and purse updates time to arrive, and checks your party. When solo, it requests normal Floor VII and selects the server’s Solo option if prompted. A multiplayer party or unanswered party check cancels the request. |
+| Show run report | On | A HUD card shows the run number, time, giant, fragment outcome and collected profit. The detailed item list is available under **Session log → Run → Itemized loot**. |
+| Time on screen | 4 seconds | Adjust from 1 to 30 seconds. Loading screens, hidden HUD and open menus pause the display timer. |
+
+The report separates giant fragments, kill coins, dropped essence, salvage essence and other items. Bazaar quotes, sell tax and the salvage setting match the run log. Stash or purse rewards received while the card is visible update its total. An early exit gets its own report.
+
+Hypixel prohibits automated gameplay actions. Enabling automatic warp or requeue on Hypixel can result in a ban. This disclosure is also visible beside the switches in Settings. [Hypixel Allowed Modifications](https://support.hypixel.net/hc/en-us/articles/6472550754962-Hypixel-Allowed-Modifications)
 
 ## Session log
 

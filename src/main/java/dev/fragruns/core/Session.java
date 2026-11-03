@@ -241,6 +241,7 @@ public final class Session {
         stash.clear();
     }
     public String id() { return id; }
+    public Run latestRun() { return runs.isEmpty()?null:runs.getLast(); }
     public List<Run> runs() { return List.copyOf(runs); }
     public LootLedger loot() { return loot; }
     public int totalRuns() { return runs.size(); }

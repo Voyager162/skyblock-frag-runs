@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0 — Run reports and solo F7 controls
+
+- Add a four-second post-run HUD report with time, giant, fragment outcome, five profit categories and the total. Choose a display time from 1 to 30 seconds or turn the report off.
+- Add separate, default-off controls for warping to the Dungeon Hub after a giant kill and queuing the next solo F7. Requeue checks party status and supports the server’s Solo button.
+- Add **Run actions & report** to Settings, including Hypixel’s restriction on automated gameplay.
+
 ## 1.8.0 — Silent hub stash checks
 
 - Check the four giant-fragment balances when a session begins in the hub and on return from F7. A verified increase updates the earning run, its drop rate and collected profit before pickup.

@@ -13,6 +13,7 @@ import dev.fragruns.tracking.GameTracker;
 import dev.fragruns.tracking.RunMapRecorder;
 import dev.fragruns.ui.DashboardScreen;
 import dev.fragruns.ui.FragHud;
+import dev.fragruns.ui.RunReportHud;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -48,7 +49,7 @@ public final class FragRunsClient implements ClientModInitializer {
         store=new SessionStore(FabricLoader.getInstance().getConfigDir().resolve("fragruns"));
         config=store.loadConfig(); store.loadSession(session);
         market=new MarketService(store.directory(),catalog);
-        tracker=new GameTracker(session,catalog,store);
+        tracker=new GameTracker(session,catalog,store,config);
         maps=new RunMapRecorder(session,store.maps());
         var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath("fragruns","session"));
         sessionKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.fragruns.session",InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_F7,category));
@@ -58,6 +59,7 @@ public final class FragRunsClient implements ClientModInitializer {
             while(sessionKey.consumeClick()) if(client.player!=null && KeyMappingHelper.getBoundKeyOf(sessionKey).getType()==InputConstants.Type.MOUSE) sessionKeyPressed();
             while(dashboardKey.consumeClick()) if(client.player!=null) openDashboard(false);
             tracker.tick(client);
+            tracker.tickReport(client);
             maps.tick(client,tracker.inBossPhase());
             if(session.active() || config.showStoppedHud && !session.id().isEmpty() || client.gui.screen() instanceof DashboardScreen || client.gui.screen() instanceof dev.fragruns.ui.LayoutScreen) market.tick(config.priceRefreshSeconds);
             long now=System.nanoTime()/1_000_000;
@@ -73,7 +75,7 @@ public final class FragRunsClient implements ClientModInitializer {
                 .then(literal("settings").executes(ctx->{ Minecraft.getInstance().execute(()->openDashboard(true)); return 1; }))
                 .then(literal("session").executes(ctx->{ Minecraft.getInstance().execute(this::sessionKeyPressed); return 1; }))));
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,Identifier.fromNamespaceAndPath("fragruns","hud"),
-                (graphics,delta)->FragHud.render(graphics,this));
+                (graphics,delta)->{FragHud.render(graphics,this);RunReportHud.render(graphics,this);});
         // A separate development preview has no world and never changes the real session save.
         if(Boolean.getBoolean("fragruns.preview")) ClientTickEvents.END_CLIENT_TICK.register(client->{
             if(!previewOpened && client.gui.screen() instanceof net.minecraft.client.gui.screens.TitleScreen) {

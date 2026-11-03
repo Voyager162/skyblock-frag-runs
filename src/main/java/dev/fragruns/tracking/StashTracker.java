@@ -33,6 +33,7 @@ final class StashTracker {
     }
     String scope(Minecraft mc) { return mc.player==null || profile.isEmpty()?"":mc.player.getUUID()+"/"+profile; }
     boolean collecting(long now) { return claimScope!=null || now<claimUntil; }
+    boolean pending() { return audit.pending(); }
     void profile(Minecraft mc,String text,long now) {
         var match=PROFILE.matcher(text);
         if (match.matches() && !profile.equals(match.group(1))) {

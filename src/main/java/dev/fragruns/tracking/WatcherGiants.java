@@ -10,24 +10,30 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 final class WatcherGiants {
     private static final Pattern DEAD=Pattern.compile("(?:^|\\s)0(?:/[^\\s❤♥]+)?\\s*[❤♥]");
     private final Session session;
     private final Map<Integer,Body> bodies=new HashMap<>();
+    private final Set<Integer> seenDeathLabels=new HashSet<>();
     private long combatUntil;
     private static final class Body {
         final GiantOutfit outfit=new GiantOutfit();
         Giant type;
-        boolean named;
-        long hurtUntil;
+        boolean named,deathEvaluated;
+        long hurtUntil,localHitUntil,otherPlayerHitUntil;
     }
     WatcherGiants(Session session) { this.session=session; }
-    void reset() { bodies.clear(); combatUntil=0; }
+    private boolean confirmedDeath;
+    boolean confirmedDeath() { return confirmedDeath; }
+    void reset() { bodies.clear();seenDeathLabels.clear();combatUntil=0;confirmedDeath=false; }
     void combat(long now) { combatUntil=now+2_000; }
     private static boolean isBody(Entity e) {
         return e instanceof net.minecraft.world.entity.monster.Giant || e instanceof Zombie z && z.getScale()>=3.0f;
@@ -36,10 +42,20 @@ final class WatcherGiants {
         if (text.contains("Handle") || text.contains("Eye") || text.contains("Rock") || text.contains("Bola")) return null;
         return Giant.fromName(text);
     }
-    void damaged(Minecraft mc,Entity entity,long now) {
+    void damaged(Minecraft mc,Entity entity,long now,Entity attacker) {
         if (!isBody(entity)) return;
+        var body=bodies.computeIfAbsent(entity.getId(),id->new Body());
+        body.hurtUntil=now+1_500;
+        if (attacker instanceof Player) {
+            body.localHitUntil=attacker==mc.player?body.hurtUntil:0;
+            body.otherPlayerHitUntil=attacker==mc.player?0:body.hurtUntil;
+        }
         observe(mc,entity,now,false);
-        bodies.get(entity.getId()).hurtUntil=now+1_500;
+    }
+    private static boolean personalOrSolo(Minecraft mc,Entity target,Body body,long now) {
+        if (mc.player.distanceToSqr(target)>32*32 || body!=null && now<body.otherPlayerHitUntil) return false;
+        if (body!=null && now<body.localHitUntil) return true;
+        return mc.level.players().stream().noneMatch(p->p!=mc.player && !p.isSpectator() && p.distanceToSqr(target)<32*32);
     }
     void observe(Minecraft mc,Entity e,long now,boolean death) {
         if (e==null) return;
@@ -62,7 +78,13 @@ final class WatcherGiants {
                 var type=body.outfit.observe(gear,color==null?-1:color.rgb(),now,dead);
                 if (type!=null) { body.type=type; session.observeOutfit(type); }
             }
-            if (dead && body.type!=null) session.giantDefeated(body.type);
+            if (dead && body.type!=null) {
+                session.giantDefeated(body.type);
+                if (!body.deathEvaluated) {
+                    body.deathEvaluated=true;
+                    confirmedDeath|=session.currentGiant()==body.type && personalOrSolo(mc,e,body,now);
+                }
+            }
             return;
         }
         String text;
@@ -85,7 +107,10 @@ final class WatcherGiants {
             var body=bodies.computeIfAbsent(nearest.getId(),id->new Body());
             if (type!=null) { body.named=true; body.type=type; }
             if (zero) observe(mc,nearest,now,true);
-        } else if (zero && type!=null) session.giantDefeated(type);
+        } else if (zero && type!=null) {
+            session.giantDefeated(type);
+            if (seenDeathLabels.add(e.getId())) confirmedDeath|=session.currentGiant()==type && personalOrSolo(mc,e,null,now);
+        }
     }
     void removed(Minecraft mc,Entity entity,long now,boolean bloodOpen) {
         if (entity==null || !isBody(entity)) return;
@@ -93,7 +118,11 @@ final class WatcherGiants {
         // A nearby giant removed during combat can die without sending vanilla's death animation.
         boolean killed=bloodOpen && body!=null && mc.player.distanceToSqr(entity)<32*32
                 && (now<body.hurtUntil || now<combatUntil);
+        // A generic despawn can support statistics. Travel needs a death signal or a hit attributed to this player.
+        boolean previouslyConfirmed=confirmedDeath;
         observe(mc,entity,now,killed);
+        if (killed && entity instanceof LivingEntity living && !living.isDeadOrDying() && now>=body.localHitUntil)
+            confirmedDeath=previouslyConfirmed;
         bodies.remove(entity.getId());
     }
 }

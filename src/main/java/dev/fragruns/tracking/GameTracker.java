@@ -11,6 +11,9 @@ import dev.fragruns.core.PurseTracker;
 import dev.fragruns.core.Session;
 import dev.fragruns.core.Signals;
 import dev.fragruns.core.StashMessages;
+import dev.fragruns.core.ModConfig;
+import dev.fragruns.core.RunActions;
+import dev.fragruns.core.RunReport;
 import dev.fragruns.data.ItemCatalog;
 import dev.fragruns.data.SessionStore;
 import net.minecraft.network.chat.Component;
@@ -37,6 +40,10 @@ import java.util.Set;
 
 public final class GameTracker {
     private final Session session;
+    private final ModConfig config;
+    private final RunActions actions=new RunActions();
+    private final RunReport report=new RunReport();
+    private boolean issuingCommand;
     private final ItemCatalog catalog;
     private final PickupReconciler pickups = new PickupReconciler();
     private final PurseTracker purse = new PurseTracker();
@@ -63,7 +70,8 @@ public final class GameTracker {
     private long leftAt;
     private int tickCount;
 
-    public GameTracker(Session session,ItemCatalog catalog,SessionStore store) {
+    public GameTracker(Session session,ItemCatalog catalog,SessionStore store,ModConfig config) {
+        this.config=config;
         this.session=session; this.catalog=catalog; this.giants=new WatcherGiants(session);
         stash=new StashTracker(session,store,catalog,fragments);
     }
@@ -71,9 +79,15 @@ public final class GameTracker {
     public boolean inBossPhase() { return bossPhase; }
     public boolean precisePurse() { return precisePurse; }
     public boolean essenceBaseline() { return essenceBalances.hasBaseline(); }
+    public RunReport report() { return report; }
+    public void tickReport(Minecraft client) {
+        report.tick(session,config,client.player!=null && client.level!=null && client.level==lastLevel && !transferring
+                && !client.gui.hud.isHidden() && client.gui.screen()==null && client.gui.overlay()==null,now());
+    }
     private static long now() { return System.nanoTime()/1_000_000; }
 
     public void reset() {
+        report.clear();
         resetTrackingBaselines();
         knownUuids.clear();
         giants.reset();
@@ -82,6 +96,8 @@ public final class GameTracker {
         watcherAwake=false;
     }
     public void resetTrackingBaselines() {
+        actions.enter(session.currentRunId());
+        actions.dungeon(session.currentRunId(),session.giantKilled(),false,false,now());
         previousInventory.clear();
         inventoryReady = false;
         pickups.reset();
@@ -103,6 +119,7 @@ public final class GameTracker {
         boolean warp = transferring && connection == network && connection.isConnected();
         endRun(warp ? "Left dungeon" : "Disconnected", !warp);
         if (!warp) {
+            actions.clear();report.clear();
             stash.disconnect(Minecraft.getInstance(),now());
             presence.reset();
             carriedFragments.clear();
@@ -158,12 +175,14 @@ public final class GameTracker {
                     (id,count)->{ if (session.running()) session.loot().addEssence(id,count); });
         }
         if (!session.running()) {
+            actions.clear();
             if (session.paused() && session.inDungeon() && !f7) endRun("Left while paused", true);
             return;
         }
         if (f7 && !transferring && !session.inDungeon()) {
             huntingBox.settle(now,true,this::creditBoxShard);
             session.enterDungeon(presence.confirmedAge(now));
+            actions.enter(session.currentRunId());
             stash.entered(client);
             essenceBalances.enter();
             purse.enterDungeon(now);
@@ -190,11 +209,26 @@ public final class GameTracker {
             else if (area == Signals.Area.OUTSIDE) purse.observeOutside(balance.getAsDouble(), now,credit);
         }
         purse.flush(now,false,session.loot()::addCoins);
-        if(!session.inDungeon()) return;
+        boolean available=client.gui.screen()==null && client.gui.overlay()==null && !client.player.isDeadOrDying()
+                && client.player.containerMenu==client.player.inventoryMenu && client.player.inventoryMenu.getCarried().isEmpty();
+        if(!session.inDungeon()) {
+            if (area==Signals.Area.OTHER_FLOOR || presence.queued(now)) actions.cancelQueue();
+            command(client,actions.hub(config.queueSoloF7,hub,available && !stash.view.busy() && !stash.collecting(now),stash.pending(),now));
+            if (hub && config.queueSoloF7 && actions.confirming(now)) SoloQueueMenu.confirm(client,actions);
+            return;
+        }
         tickCount++;
         if(!bossPhase && !transferring && tickCount%2==0) for (Entity entity:client.level.entitiesForRendering()) giants.observe(client,entity,now,false);
         if(!inventoryReady || tickCount%2==0) scanInventory(client,now);
         settleFragments(now,false);
+        if (f7 && !bossPhase && !transferring) command(client,actions.dungeon(session.currentRunId(),
+                giants.confirmedDeath() || session.currentFragments()>0,
+                config.warpOnGiantKill,available,now));
+    }
+    private void command(Minecraft client,RunActions.Action action) {
+        if (action==RunActions.Action.NONE || client.getConnection()==null) return;
+        issuingCommand=true;
+        try {client.getConnection().sendCommand(action.command);} finally {issuingCommand=false;}
     }
 
     private void observeHuntingBox(Minecraft client, boolean eligible, long now) {
@@ -245,7 +279,7 @@ public final class GameTracker {
         Connection next = client.getConnection().getConnection();
         if (network != next) {
             endRun("Disconnected", true);
-            if (network!=null) stash.disconnect(client,now);
+            if (network!=null) {stash.disconnect(client,now);actions.clear();report.clear();}
             presence.reset();
             carriedFragments.clear();
             clearShardBaseline();
@@ -287,7 +321,9 @@ public final class GameTracker {
         if (session.currentGiant()!=null) stash.booked(session.currentGiant(),fragments.possiblyStashed(session.currentGiant()));
         stash.run(!interrupted && !session.paused());
         purse.leaveDungeon(now(), interrupted, session.loot()::addCoins);
+        actions.exit(session.currentRunId(),config.queueSoloF7 && session.running() && !interrupted,now());
         session.leaveDungeon(reason,interrupted || session.paused());
+        if (config.showRunReport && (!interrupted || session.paused())) report.finished(session);
         if (interrupted || session.paused()) clearShardBaseline();
         else checkBoxUntil = now() + 60_000;
         leftAt=now();essenceBalances.leave();
@@ -382,9 +418,9 @@ public final class GameTracker {
         if (removed) giants.removed(mc,entity,now(),watcherAwake);
         else giants.observe(mc,entity,now(),death);
     }
-    public void entityDamaged(Entity entity) {
+    public void entityDamaged(Entity entity,Entity attacker) {
         var mc=Minecraft.getInstance();
-        if (trackingEntity(mc,entity)) giants.damaged(mc,entity,now());
+        if (trackingEntity(mc,entity)) giants.damaged(mc,entity,now(),attacker);
     }
     private boolean trackingEntity(Minecraft mc,Entity entity) {
         return entity!=null && session.running() && session.inDungeon() && !bossPhase && !transferring
@@ -392,6 +428,12 @@ public final class GameTracker {
     }
     public void stashCommand(String command) {
         var mc=Minecraft.getInstance();
+        if (!issuingCommand) {
+            String first=command.strip().split("\\s+",2)[0].toLowerCase(java.util.Locale.ROOT);
+            if (Set.of("warp","hub","lobby","l","play","joininstance","joindungeon","joinkuudra","instancerequeue","requeue").contains(first))
+                actions.manualTravel();
+            if (first.equals("party") || first.equals("p")) actions.cancelQueue();
+        }
         stash.view.command(command);
         if (StashMessages.pickupCommand(command) && mc.player!=null && onHypixel(mc)) stash.begin(mc,now());
     }
@@ -403,6 +445,7 @@ public final class GameTracker {
         long now=now();
         syncWorld(client, now);
         String clean=Signals.clean(message.getString());
+        actions.partyMessage(clean,now);
         stash.profile(client,clean,now);
         if (stash.claimMessage(client,message,clean,now)) return;
         var named=StashMessages.deposited(clean);
@@ -423,9 +466,10 @@ public final class GameTracker {
         }
         var floor=Signals.announcedFloor(clean);
         presence.announce(floor,now);
-        if (floor==Signals.Area.F7) stash.view.cancel(client);
+        if (floor==Signals.Area.F7) {stash.view.cancel(client);actions.cancelQueue();}
         if (clean.equals("Warping...") || clean.startsWith("Sending to server ") && clean.endsWith("...")) {
             stash.view.cancel(client);
+            actions.manualTravel();
             transferring = true;
             transferUntil=now+15_000;
             if (session.running() && client.player != null) {

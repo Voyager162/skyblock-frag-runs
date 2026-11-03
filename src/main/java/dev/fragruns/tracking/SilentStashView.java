@@ -36,6 +36,7 @@ public final class SilentStashView {
     SilentStashView(ItemCatalog catalog,BiConsumer<Map<Giant,Integer>,Boolean> accept) { this.catalog=catalog;this.accept=accept; }
     private static long now() {return System.nanoTime()/1_000_000;}
     private int stateId;
+    boolean busy() { return model!=null || waiting; }
     void tick(Minecraft mc,boolean inHub,boolean needed,long time) {
         if (connection!=mc.getConnection()) {reset(mc);connection=mc.getConnection();}
         if (world!=mc.level) {cancel(mc);world=mc.level;hub=false;}

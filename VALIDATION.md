@@ -1,14 +1,16 @@
-# Validation — version 1.8.0
+# Validation — version 1.9.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**158 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**176 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
 | Session | 22 | Entry/exit timing, active and paused clocks, pause/resume inside one run, double presses from either state, the inclusive 1.5-second boundary, key repeats, run statistics, partial stops, and recovery |
+| Run actions | 13 | One command per visit, loot and hub delays, party replies and timeouts, manual travel, disabled or paused controls, and identifying the solo option without selecting another floor or party |
+| Timed report | 5 | Upgrading old settings, visible duration, disabling the card, early exits, run ownership, late stash and coin receipts, unpriced items and all five profit categories |
 | Accounting | 20 | Pickup/inventory reconciliation, expiring credits, exact pre-run and post-run purse balances, transaction exclusions, interrupted or late returns, coin losses, pricing, salvage, and seven-category profit breakdown |
 | Giant drops | 3 | Carried stacks reappearing across a warp or moving during a kill, matching-encounter evidence, and delayed packet/inventory delivery in both orders |
 | Fragment stash | 13 | All four names, item quantities, generic overflow, profile boundaries, post-stop and restarted sessions, withdrawal order, balance reservations, partial and bulk claims, shared drop rates and single-use assignment across archives |
@@ -28,6 +30,15 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.9.0
+
+Two isolated Minecraft clients used the SkyBlock Enhanced pack with Skyblocker 6.10.4 and 6.11.0. An integrated-server fixture registered the real command names and sent transfers, giant damage and death events, party replies, stash contents and a Floor VII container with separate Solo and Party Finder controls. No live Hypixel account was used.
+
+- An existing settings file loaded both commands off and the four-second report on. Actual clicks in the F9 settings page changed each switch and the duration, and the values could be read back from disk.
+- With both commands off, the report appeared after a manual exit and expired. With both on, repeated giant death packets produced one warp. The server received one party check, one normal F7 request and one click on Solo.
+- A stashed Eye and a delayed 80,000-coin purse increase updated the earning run. The timed card matched its saved ledger across giant fragments, coins, direct essence, salvage and other items. Screenshots of the report and settings were inspected with the pack’s active font.
+- A multiplayer party cancelled requeue. Pausing during the loot delay cancelled the warp. A simple entity unload and another nearby player’s kill both left the player in the dungeon. A local hit followed by a giant disappearing during combat triggered one warp on a no-drop run. A server menu for Master Mode remained open for the player.
 
 ### Version 1.8.0
 
