@@ -36,16 +36,19 @@ class HourlyProfitTest {
         session.loot().addItem(Giant.DIAMANTE.itemId,"Handle",1,null,0,50_000);
         assertEquals(0,hourly());
     }
-    @Test void usesFixedSpawnAndDropOddsWithFullSessionPace() {
-        finish(Giant.DIAMANTE,0);finish(Giant.DIAMANTE,0);clock.set(1_800_000);
-        // (1m + 200k + 100k + 50k) * 25% * 50% * 2 runs / 0.5 hours.
-        assertEquals(675_000,hourly());
+    @Test void weightsExpectedDropValueByAverageRunTimeRegardlessOfHubDowntime() {
+        finish(Giant.DIAMANTE,0);
+        session.enterDungeon();clock.addAndGet(180_000);session.giantDefeated(Giant.LASR);session.leaveDungeon("Warp",false);
+        assertEquals(120_000,session.average());
+        assertEquals(168_750 * 30,hourly());
+        clock.addAndGet(3_600_000);
+        assertEquals(168_750 * 30,hourly());
     }
     @Test void giantIdentityAndFragmentLuckDoNotChangeExpectedIncome() {
         finish(Giant.DIAMANTE,2);finish(Giant.DIAMANTE,2);clock.set(1_800_000);
         double lucky=hourly();
         session.stop();session.start();finish(Giant.JOLLY_PINK,0);finish(Giant.JOLLY_PINK,0);clock.addAndGet(1_680_000);
-        assertEquals(675_000,lucky);assertEquals(lucky,hourly());
+        assertEquals(168_750 * 60,lucky);assertEquals(lucky,hourly());
     }
     @Test void collectedModeExactlyRestoresOldCalculationIncludingPartialLoot() {
         finish(Giant.DIAMANTE,2);clock.set(1_800_000);
@@ -62,38 +65,38 @@ class HourlyProfitTest {
         session.loot().addItem("LIVID_FRAGMENT","Livid",2,null,0,0);
         session.loot().addEssence("ESSENCE_UNDEAD",10);
         session.loot().addItem("ARMOR","Armor",2,"ESSENCE_UNDEAD",15,1_000);
-        assertEquals(168_750+80_000+300+20_000+100+300,hourly());
+        assertEquals(168_750*60+80_000+300+20_000+100+300,hourly());
         config.includeSalvage=false;
-        assertEquals(168_750+80_000+300+20_000+100+2_000,hourly());
+        assertEquals(168_750*60+80_000+300+20_000+100+2_000,hourly());
     }
     @Test void earlyResetsAndInterruptionsAddTimeButNoExpectedDrops() {
         finish(Giant.LASR,0);
         session.enterDungeon();session.observeGiant(Giant.DIAMANTE);clock.addAndGet(60_000);session.leaveDungeon("Early",false);
         session.enterDungeon();session.giantDefeated(Giant.DIAMANTE);clock.addAndGet(60_000);session.leaveDungeon("Disconnect",true);
         clock.set(3_600_000);
-        assertEquals(3,session.totalRuns());assertEquals(1,session.completedRuns());assertEquals(168_750,hourly());
+        assertEquals(3,session.totalRuns());assertEquals(1,session.completedRuns());assertEquals(168_750*20,hourly());
     }
     @Test void marketChangesRepriceExpectedFragmentsWithoutAnyCollectedFragments() {
-        finish(Giant.LASR,0);clock.set(3_600_000);assertEquals(168_750,hourly());
+        finish(Giant.LASR,0);clock.set(3_600_000);assertEquals(168_750*60,hourly());
         var changed=new java.util.HashMap<>(PRICES);changed.put(Giant.DIAMANTE.itemId,2_000_000.0);
-        assertEquals(293_750,hourly(changed,id->50_000));
+        assertEquals(293_750*60,hourly(changed,id->50_000));
     }
     @Test void expectedBazaarValuePaysTaxButNpcFallbackDoesNot() {
         finish(Giant.BIGFOOT,0);clock.set(3_600_000);config.bazaarTaxPercent=1.25;
         // One valid Bazaar quote and three NPC fallbacks; kill coins have no tax.
         session.loot().addCoins(80_000);
-        assertEquals(80_000+(987_500+150_000)*0.125,hourly(Map.of(Giant.DIAMANTE.itemId,1_000_000.0),id->50_000));
+        assertEquals(80_000+(987_500+150_000)*0.125*60,hourly(Map.of(Giant.DIAMANTE.itemId,1_000_000.0),id->50_000));
     }
     @Test void missingAndInvalidQuotesDoNotInventMarketValues() {
         finish(Giant.LASR,0);clock.set(3_600_000);
         assertEquals(0,hourly(Map.of(),id->0));
-        assertEquals(25_000,hourly(Map.of(Giant.DIAMANTE.itemId,Double.NaN,Giant.LASR.itemId,-10.0),id->50_000));
+        assertEquals(25_000*60,hourly(Map.of(Giant.DIAMANTE.itemId,Double.NaN,Giant.LASR.itemId,-10.0),id->50_000));
     }
     @Test void togglingDoesNotChangeTotalsCountsHistoryOrSaves() {
         finish(Giant.DIAMANTE,1);clock.set(3_600_000);
         var original=session.snapshot();var stats=session.giantStats();
-        assertEquals(168_750,hourly());config.expectedFragmentProfit=false;assertEquals(1_000_000,hourly());
-        config.expectedFragmentProfit=true;assertEquals(168_750,hourly());
+        assertEquals(168_750*60,hourly());config.expectedFragmentProfit=false;assertEquals(1_000_000,hourly());
+        config.expectedFragmentProfit=true;assertEquals(168_750*60,hourly());
         assertEquals(original,session.snapshot());assertEquals(stats,session.giantStats());
     }
     @Test void stoppedAndRestoredSessionKeepsTheSameProjection() {

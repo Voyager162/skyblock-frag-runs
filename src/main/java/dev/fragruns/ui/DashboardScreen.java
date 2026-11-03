@@ -6,6 +6,7 @@ import dev.fragruns.core.Layout;
 import dev.fragruns.core.LootLedger;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
@@ -23,6 +24,7 @@ public final class DashboardScreen extends Screen {
     private final List<Control> controls=new ArrayList<>();
     private double mouseX,mouseY;
     private String tooltip;
+    private String historyNotice = "";
     private record Control(int x,int y,int w,int h,String label,Runnable action) {
         boolean hit(double px,double py) { return px>=x && py>=y && px<x+w && py<y+h; }
     }
@@ -167,7 +169,8 @@ public final class DashboardScreen extends Screen {
             Theme.text(g,Integer.toString(run.fragments()),340,y,Theme.TEXT);Theme.fit(g,run.completed()?"Finished":"Early / partial",430,y,98,run.completed()?Theme.GREEN:Theme.MUTED,0.9f);
         }
         if(runs.isEmpty()) { Theme.centered(g,"A fresh session. Your first run starts in Floor VII.",WIDTH/2,183,Theme.MUTED);Theme.centered(g,"Run timing stops when you leave the dungeon.",WIDTH/2,204,Theme.MUTED); }
-        Theme.fit(g,"Newest first • sessions are saved locally",25,301,340,Theme.MUTED,0.85f);pager(g,pages);
+        button(g,25,294,147,21,"Clear session history…",Theme.RED,this::confirmClearHistory,"Manage saved sessions for this profile.",false);
+        Theme.fit(g,historyNotice.isEmpty()?"Newest first":historyNotice,179,301,217,Theme.MUTED,0.85f);pager(g,pages);
     }
     private void pager(GuiGraphicsExtractor g,int pages) {
         button(g,406,295,24,20,"<",Theme.BLUE,()->page=Math.max(0,page-1),"Previous page",false);
@@ -183,7 +186,7 @@ public final class DashboardScreen extends Screen {
         Theme.text(g,"DISPLAY",289,94,Theme.BLUE);
         button(g,289,114,236,22,"HUD  "+(mod.config().showHud?"ON":"OFF"),mod.config().showHud?Theme.GREEN:Theme.MUTED,()->{mod.config().showHud=!mod.config().showHud;mod.saveConfig();},"Show the compact overlay while the session runs.",false);
         button(g,289,144,236,22,"Show saved HUD  "+(mod.config().showStoppedHud?"ON":"OFF"),Theme.BLUE,()->{mod.config().showStoppedHud=!mod.config().showStoppedHud;mod.saveConfig();},"Keep the last session visible after stopping.",false);
-        Theme.fit(g,"Font follows your active resource pack.",289,177,236,Theme.MUTED,0.8f);
+        button(g,289,170,236,20,"Clear session history…",Theme.RED,this::confirmClearHistory,"Delete saved sessions for this profile.",false);
         Theme.panel(g,14,206,522,112);Theme.text(g,"PROFIT & CONTROLS",25,217,Theme.BLUE);
         button(g,25,236,238,22,"Include salvage  "+(mod.config().includeSalvage?"ON":"OFF"),Theme.BLUE,()->{mod.config().includeSalvage=!mod.config().includeSalvage;mod.saveConfig();},"Value eligible mob gear as essence. Turning this off uses item Bazaar or NPC value. No items are automatically salvaged.",false);
         button(g,279,236,28,22,"-",Theme.BLUE,()->{mod.config().bazaarTaxPercent=Math.max(0,mod.config().bazaarTaxPercent-0.05);mod.saveConfig();},"Decrease sell tax by 0.05%",false);
@@ -193,9 +196,37 @@ public final class DashboardScreen extends Screen {
         Theme.fit(g,"Session: "+mod.sessionKeyName()+" • Settings: "+mod.dashboardKeyName()+" • Rebind in Options > Controls > Key Binds",25,291,500,Theme.MUTED,0.85f);
         Theme.fit(g,mod.store().warning().isEmpty()?"Two presses within 4 seconds to stop. Esc cancels the confirmation.":mod.store().warning(),25,301,500,mod.store().warning().isEmpty()?Theme.MUTED:Theme.RED,0.85f);
     }
+    private void confirmClearHistory() {
+        boolean active = mod.session().running();
+        String sessionId = mod.session().id();
+        String explanation = active
+                ? "Permanently delete previous sessions in this profile? Your current session will keep running."
+                : "Permanently delete all saved sessions in this profile, including the last session and its runs and loot?";
+        var dialog = new ConfirmScreen(confirmed -> {
+            if (confirmed) {
+                if (active != mod.session().running() || !sessionId.equals(mod.session().id())) {
+                    confirmClearHistory();
+                    return;
+                }
+                try {
+                    mod.store().clearHistory(mod.session());
+                    historyNotice = active ? "Past sessions cleared" : "Session history cleared";
+                } catch (java.io.IOException e) {
+                    historyNotice = "Clear failed. Check file access and retry.";
+                }
+                page = 0;
+                tab = 2;
+            }
+            focus = -1;
+            minecraft.gui.setScreen(this);
+        }, Component.literal("Clear session history?"), Component.literal(explanation),
+                Component.literal("Clear history"), Component.literal("Cancel"));
+        minecraft.gui.setScreen(dialog);
+        dialog.setDelay(10);
+    }
     private String hourlyProfitTip() {
         return mod.config().expectedFragmentProfit
-                ? "Expected: 25% chance per giant x 50% fragment drop x finished runs / session hours. Other loot uses collected values. Totals and drop statistics stay actual. Click in Settings to use collected drops."
+                ? "Giant fragment coins/h uses the expected drop value per finished encounter, your average run time and the share of runs you finish. Other loot uses collected value per session hour."
                 : "Collected: all collected loot value / full session hours, as in version 1.0.0. Click in Settings to estimate only giant fragments from fixed drop chances.";
     }
     private void button(GuiGraphicsExtractor g,int x,int y,int w,int h,String label,int color,Runnable action,String tip,boolean selected) {

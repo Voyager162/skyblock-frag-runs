@@ -1,26 +1,40 @@
-# Validation — version 1.1.0
+# Validation — version 1.2.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**90 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**100 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
 | Session | 19 | Entry/exit timing, downtime, fastest/slowest/last/average, early exits, repeated giant observations, drop probabilities, stop confirmation/expiry, rapid separate presses, held-key/duplicate-delivery protection, partial stops, crash checkpoints, stopped-session recovery, reset, hourly profit |
-| Accounting | 18 | Pickup/inventory reconciliation in either order, coalesced pickups, expiring credits, purse baselines, excluded transactions, coin losses, repricing, tax, NPC fallbacks, unknown prices, salvage without double counting, quality lots, invalid values, save round trips, seven-category profit breakdown |
-| Hourly projection | 11 | Fixed probability model, independence from giant/drop luck, original-mode equivalence, non-giant accounting, early exits, zero/live runs, repricing, tax/NPC fallback, invalid quotes, unchanged ledger/statistics, stopped/recovered sessions |
+| Accounting | 20 | Pickup/inventory reconciliation, expiring credits, exact pre-run and post-run purse balances, transaction exclusions, interrupted or late returns, coin losses, pricing, salvage, and seven-category profit breakdown |
+| Hourly projection | 11 | Average run duration across different speeds, hub downtime, finished share, fixed drop odds, original-mode equivalence, other loot per session hour, zero/live runs, repricing, tax, and restored sessions |
+| Dungeon presence | 5 | Pre-warp multiline banner, real transfer, rebuilt or stale hub sidebar, confirmation after arrival, requeue inside F7, Master Mode, expired or cancelled entry, and disconnect |
 | Essence | 5 | Hub-balance parsing and reconciliation, chat reward subtraction, salvage receipt subtraction, partial balances, invalidation |
 | Layout | 9 | Seven viewport sizes from 320×240 through 3440×1440, multiple scales and anchors, invalid settings, clamping, coordinate round trips |
 | Signals | 15 | Formatted scoreboard/chat parsing, exact F7 recognition, other-floor/Master Mode rejection, purse precision, essence messages, transaction exclusions |
-| Data | 13 | Public Bazaar order parsing, invalid responses, bundled catalog, item-specific salvage and bonuses, persistence, corrupt-save recovery, new-install defaults, 1.0.0 migration, and saved mode selection |
+| Data | 16 | Bazaar orders, catalog and salvage, settings migration, save recovery, clearing archives/backups, keeping a live run and loot, restart after clearing, and retry after a filesystem error |
 
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
 
-### Version 1.1.0
+### Version 1.2.0
+
+A user running 1.0.0 on Hypixel recorded an 88-second session with zero runs. The game log showed the Floor VII queue banner, a server transfer about four seconds later, Mort and Watcher dialogue, and a return warp about 62 seconds after entry. The previous detector required a matching sidebar title and row before tracking any run activity.
+
+The regression tests use the banner format with a substitute player name. An additional test uses 60-second and 180-second runs to verify a two-minute average and 30 projected attempts per hour, including after an hour of hub downtime.
+
+The packaged 1.2.0 JAR ran with all 68 copied SkyBlock Enhanced mod JARs and a separate test-only mod in an offline Minecraft 26.2 world. The local integrated server sent game packets to the client and changed dimensions to exercise the actual world-transfer, chat, entity and inventory hooks. The test mod supplied the server events and assertions.
+
+- The banner left the clock at zero in the hub. The transfer started the run, which continued through an incomplete sidebar. A named giant spawned and its death registered before the fragment arrived.
+- Server inventory updates delivered one L.A.S.R.'s Eye, one Zombie Commander Helmet worth 15 salvage essence, and two Spirit Leaps. A direct Wither Essence reward counted once. Returning to the hub added exactly 80,000 coins from exact purse balances, finalized one completed run and returned the run clock to zero.
+- A second F7 entry used split team prefix/suffix text and a decorative sidebar title. Switching that row to M7 closed the F7 attempt as partial.
+- The Settings button opened the confirmation dialog. Cancel kept the saved session. Clear removed its displayed statistics, archives and backups. Automated storage tests covered an active run, a reload and a deletion failure.
+
+### Previous version 1.1.0 checks
 
 - Started the 1.1.0 jar with all 68 copied SkyBlock Enhanced mod jars in the separate test instance.
 - Used an explicitly labeled preview fixture with one elapsed hour, eight finished Bigfoot encounters, no giant-fragment drops, and collected coins/essence/Spirit Leaps.
@@ -45,7 +59,7 @@ The test instance used an offline preview identity. Other pack mods and Minecraf
 
 ## Limits and live-play checklist
 
-**No authenticated Hypixel F7 dungeon run was performed.** Automated accounting/parser tests and local pack testing cannot verify every current Hypixel packet, name tag, purse format, or tab-list layout. This release should receive a real frag-run playtest before its numbers are relied on.
+**An authenticated Hypixel F7 playtest of 1.2.0 is pending.** Local testing covers only the packet and display formats exercised. The earlier report established the failure on 1.0.0.
 
 For that playtest:
 
@@ -54,14 +68,14 @@ For that playtest:
 3. Compare collected item quantities and purse changes against the ledger. Inventory rearrangement, selling an item, and salvaging counted gear must not add the same loot again.
 4. With exact essence balances visible in the Dungeon Hub tab list, compare before/after balances. Without those balances, only directly observed essence rewards can be counted reliably.
 5. Check both zero-fragment and fragment-drop runs, a disconnect, and a manual stop inside F7. Interruptions should remain partial.
-6. Switch hourly modes during a session. Expected mode should use fixed probabilities and finished encounters per full session hour; Collected mode should match actual total value divided by session hours. The session's loot ledger and observed drop statistics must stay the same.
+6. Switch hourly modes. Check expected giant fragments against average run duration and finished share. Check collected mode against total collected value divided by session hours.
 
 Profit is an estimate: purse deltas can include unrecognized transfers, server-only/sack pickups may bypass observed inventory events, and unknown items have no invented price. Auction premiums, consumed supplies, and order-book depth are outside the estimate. The HUD intentionally omits price-cache status messages.
 
 ## Release artifact
 
-`build/libs/skyblock-frag-runs-1.1.0.jar` — 155,108 bytes.
+`build/libs/skyblock-frag-runs-1.2.0.jar` — 162,924 bytes.
 
-SHA-256: `09C7206CF4C6106F37D3295534EB71E5670B616A70EB2DCD55AF5D8D4D4D13ED`
+SHA-256: `0b7953b6c4e45af328bf835eb206be0569264714e0352b8b392609fb3b4fedbf`
 
 Install this jar, not the `-sources.jar`. Source code and build files are included in the project workspace.

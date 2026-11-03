@@ -71,6 +71,66 @@ class DataTest {
     @Test void newInstallDefaultsToExpectedFragmentIncome() {
         assertTrue(new SessionStore(directory).loadConfig().expectedFragmentProfit);
     }
+    @Test void clearRemovesArchivesCheckpointsAndBackupsWithoutResurrectingThem() throws Exception {
+        var store = new SessionStore(directory);
+        var session = new Session(() -> 10);
+        session.start();
+        session.enterDungeon();
+        session.collectFragment(Giant.DIAMANTE, 1);
+        session.leaveDungeon("Warp", false);
+        session.stop();
+        store.archive(session);
+        store.archive(session);
+        store.saveSession(session);
+        store.saveSession(session);
+        Files.writeString(directory.resolve("session.json.corrupt-123"), "damaged");
+        Files.writeString(directory.resolve("session.json.tmp"), "incomplete");
+        Files.writeString(directory.resolve("history/notes.txt"), "keep");
+        Files.writeString(directory.resolve("prices.json"), "keep");
+        store.saveConfig(new ModConfig());
+
+        store.clearHistory(session);
+        store.archive(session);
+        store.saveSession(session);
+        store.clearHistory(session);
+        assertEquals("", session.id());
+        assertTrue(session.runs().isEmpty());
+        var reopened = new Session(() -> 20);
+        store.loadSession(reopened);
+        assertEquals("", reopened.id());
+        try (var files = Files.list(directory)) {
+            assertEquals(java.util.Set.of("history","settings.json","prices.json"),
+                    files.map(path -> path.getFileName().toString()).collect(java.util.stream.Collectors.toSet()));
+        }
+        try (var files = Files.list(directory.resolve("history"))) {
+            assertEquals(java.util.List.of("notes.txt"), files.map(path -> path.getFileName().toString()).toList());
+        }
+    }
+    @Test void clearWhilePlayingKeepsActiveRunLootAndRecoveryCheckpoint() throws Exception {
+        var store = new SessionStore(directory);
+        var clock = new AtomicLong(0);
+        var session = new Session(clock::get);
+        session.start(); session.stop(); store.archive(session); store.saveSession(session);
+        session.start(); session.enterDungeon(); session.loot().addCoins(80_000); clock.set(20_000);
+        var expected = session.snapshot();
+        store.clearHistory(session);
+        assertTrue(session.running());
+        assertTrue(session.inDungeon());
+        assertEquals(expected, session.snapshot());
+        var recovered = new Session(clock::get);
+        store.loadSession(recovered);
+        assertEquals(expected, recovered.snapshot());
+        assertFalse(Files.exists(directory.resolve("session.json.bak")));
+    }
+    @Test void clearFailureKeepsTheDisplayedSessionForRetry() throws Exception {
+        var store = new SessionStore(directory);
+        var session = new Session(() -> 0);
+        session.start(); session.stop(); store.saveSession(session);
+        Files.writeString(directory.resolve("history"), "not a directory");
+        assertThrows(java.io.IOException.class, () -> store.clearHistory(session));
+        assertFalse(session.id().isEmpty());
+        assertTrue(Files.exists(directory.resolve("session.json")));
+    }
     @Test void oldSettingsGainExpectedDefaultWithoutLosingOtherPreferences() throws Exception {
         Files.writeString(directory.resolve("settings.json"),"""
             {"schema":1,"hud":{"x":0.8,"y":0.2,"scale":1.3},"includeSalvage":false,"bazaarTaxPercent":1.1}

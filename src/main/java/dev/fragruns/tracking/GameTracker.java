@@ -1,6 +1,7 @@
 package dev.fragruns.tracking;
 
 import dev.fragruns.core.Giant;
+import dev.fragruns.core.DungeonPresence;
 import dev.fragruns.core.EssenceBalances;
 import dev.fragruns.core.PickupReconciler;
 import dev.fragruns.core.PurseTracker;
@@ -11,13 +12,16 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.network.chat.Component;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.numbers.FixedFormat;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.world.scores.TeamColor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,12 +35,15 @@ public final class GameTracker {
     private final PickupReconciler pickups = new PickupReconciler();
     private final PurseTracker purse = new PurseTracker();
     private final EssenceBalances essenceBalances = new EssenceBalances();
+    private final DungeonPresence presence = new DungeonPresence();
     private Map<String,Integer> previousInventory = new HashMap<>();
     private final Set<String> knownUuids = new HashSet<>();
     private final Map<Integer,Giant> giantEntities = new HashMap<>();
     private ClientLevel lastLevel;
+    private Connection network;
+    private boolean transferring;
     private boolean inventoryReady;
-    private long containerUntil, lastF7, salvageUntil;
+    private long containerUntil, salvageUntil;
     private boolean bossPhase;
     private String location = "Waiting for Hypixel SkyBlock";
     private boolean precisePurse;
@@ -51,68 +58,133 @@ public final class GameTracker {
 
     public void reset() {
         previousInventory.clear(); knownUuids.clear(); giantEntities.clear(); pickups.reset(); purse.reset();
-        inventoryReady=false; bossPhase=false; salvageUntil=0; containerUntil=0; lastF7=0;
+        inventoryReady=false; bossPhase=false; salvageUntil=0; containerUntil=0;
         essenceBalances.invalidate();
     }
-    public void disconnected() {
-        endRun("Disconnected",true); essenceBalances.invalidate(); lastLevel=null; location="Disconnected"; inventoryReady=false;
+    public void disconnected(Connection connection) {
+        // A proxy can reconfigure the same physical connection between SkyBlock instances.
+        boolean warp = transferring && connection == network && connection.isConnected();
+        endRun(warp ? "Left dungeon" : "Disconnected", !warp);
+        if (!warp) {
+            presence.reset();
+            essenceBalances.invalidate();
+            purse.reset();
+            network = null;
+        }
+        lastLevel = null;
+        inventoryReady = false;
+        location = "Disconnected";
     }
-    public void finishSession() { if(session.inDungeon()) purse.flush(now(),true,session.loot()::addCoins); }
+    public void finishSession() { purse.flush(now(),true,session.loot()::addCoins); }
 
     public void tick(Minecraft client) {
         long now=now();
-        if (lastLevel != client.level) {
-            if (lastLevel != null) endRun("Left dungeon",false);
-            lastLevel=client.level; inventoryReady=false; purse.reset(); giantEntities.clear(); bossPhase=false;
+        if (client.level == null && lastLevel != null) {
+            endRun(transferring ? "Left dungeon" : "Disconnected", !transferring);
+            lastLevel = null;
         }
         if (client.level==null || client.player==null || client.getConnection()==null) return;
-        var server=client.getCurrentServer();
-        String address=server==null ? "" : server.ip.toLowerCase(java.util.Locale.ROOT).split(":")[0];
-        boolean hypixel=address.equals("hypixel.net") || address.endsWith(".hypixel.net");
-        var board=client.level.getScoreboard();
-        var objective=board.getDisplayObjective(DisplaySlot.SIDEBAR);
-        List<String> lines=new ArrayList<>();
-        String title=objective==null ? "" : objective.getDisplayName().getString();
-        if(objective!=null) for(var entry:board.listPlayerScores(objective)) {
-            if(entry.owner().startsWith("#")) continue;
-            Component display=entry.display()==null ? Component.literal(entry.owner()) : entry.display();
-            lines.add(PlayerTeam.formatNameForTeam(board.getPlayersTeam(entry.owner()),display).getString());
+        syncWorld(client, now);
+        if (!onHypixel(client)) {
+            location = "Waiting for Hypixel SkyBlock";
+            return;
         }
-        boolean f7=hypixel && Signals.isF7(title,lines);
-        location=f7 ? "The Catacombs • Floor VII" : hypixel ? "Outside Floor VII" : "Waiting for Hypixel SkyBlock";
-        if(hypixel && !f7 && now-leftAt>2_000) {
-            List<String> tab=new ArrayList<>();
-            for(var info:client.getConnection().getOnlinePlayers()) if(info.getTabListDisplayName()!=null) tab.add(info.getTabListDisplayName().getString());
-            if(tab.stream().anyMatch(line->Signals.clean(line).contains("Dungeon Hub")) || lines.stream().anyMatch(line->Signals.clean(line).contains("Dungeon Hub")))
-                essenceBalances.observeHub(EssenceBalances.parse(tab),(id,count)->{if(session.running()) session.loot().addEssence(id,count);});
+        List<String> lines = sidebarLines(client.level.getScoreboard(), client.player.getTeam());
+        List<String> tab = new ArrayList<>();
+        for (var info : client.getConnection().getOnlinePlayers()) {
+            if (info.getTabListDisplayName() != null) tab.add(info.getTabListDisplayName().getString());
+        }
+        Signals.Area area = Signals.area(lines);
+        if (area == Signals.Area.UNKNOWN || area == Signals.Area.DUNGEON) {
+            Signals.Area tabArea = Signals.area(tab);
+            if (tabArea != Signals.Area.UNKNOWN) area = tabArea;
+        }
+        presence.observe(area, now);
+        boolean f7 = presence.inF7();
+        location = f7 ? "The Catacombs • Floor VII" : "Outside Floor VII";
+        if (!f7 && now-leftAt>2_000 && (tab.stream().anyMatch(GameTracker::inHub) || lines.stream().anyMatch(GameTracker::inHub))) {
+            essenceBalances.observeHub(EssenceBalances.parse(tab),(id,count)->{if(session.running()) session.loot().addEssence(id,count);});
         }
         if (!session.running()) return;
-        if(f7) {
-            lastF7=now;
-            if(!session.inDungeon()) {
-                session.enterDungeon(); essenceBalances.enter(); purse.reset(); pickups.reset(); giantEntities.clear(); bossPhase=false;
-                inventoryReady=false;
-            }
-        } else if(session.inDungeon() && (objective!=null && !lines.isEmpty() || now-lastF7>2_000)) {
-            // A single temporarily blank scoreboard must not split one run into two.
-            endRun("Left Floor VII",false);
+        if (f7 && !session.inDungeon()) {
+            session.enterDungeon();
+            essenceBalances.enter();
+            purse.enterDungeon(now);
+            pickups.reset();
+            inventoryReady = false;
+            giantEntities.clear();
+            bossPhase = false;
+        } else if (!f7 && session.inDungeon()) {
+            endRun("Left Floor VII", false);
         }
-        if(!session.inDungeon()) return;
         var balance=Signals.purse(lines);
+        if (balance.isEmpty()) balance=Signals.purse(tab);
         precisePurse=balance.isPresent();
-        if(balance.isPresent()) purse.observe(balance.getAsDouble(),now);
+        if (balance.isPresent()) {
+            if (f7) purse.observe(balance.getAsDouble(), now);
+            else if (area == Signals.Area.OUTSIDE) purse.observeOutside(balance.getAsDouble(), now);
+        }
         purse.flush(now,false,session.loot()::addCoins);
+        if(!session.inDungeon()) return;
         tickCount++;
         if(!inventoryReady || tickCount%2==0) scanInventory(client,now);
         if(!bossPhase && tickCount%2==0) scanGiants(client);
     }
 
+    private static boolean inHub(String line) { return Signals.clean(line).endsWith("Dungeon Hub"); }
+
+    private static boolean onHypixel(Minecraft client) {
+        if (client.getConnection() == null) return false;
+        var server = client.getCurrentServer();
+        String host = server == null ? "" : server.ip.toLowerCase(java.util.Locale.ROOT).split(":", 2)[0];
+        String brand = client.getConnection().serverBrand();
+        return host.equals("hypixel.net") || host.endsWith(".hypixel.net")
+                || brand != null && brand.toLowerCase(java.util.Locale.ROOT).startsWith("hypixel");
+    }
+
+    private void syncWorld(Minecraft client, long now) {
+        Connection next = client.getConnection().getConnection();
+        if (network != next) {
+            endRun("Disconnected", true);
+            presence.reset();
+            purse.reset();
+            essenceBalances.invalidate();
+            network = next;
+            lastLevel = null;
+        }
+        if (lastLevel != client.level) {
+            endRun("Left dungeon", false);
+            lastLevel = client.level;
+            presence.arrived(now);
+            transferring = false;
+            inventoryReady = false;
+        }
+    }
+
+    /** Hypixel uses team prefix + suffix around a synthetic score holder. Modern rows can use a display or fixed value. */
+    static List<String> sidebarLines(Scoreboard board, PlayerTeam playerTeam) {
+        var objective = playerTeam == null ? null : playerTeam.getColor().map(TeamColor::displaySlot)
+                .map(board::getDisplayObjective).orElse(null);
+        if (objective == null) objective = board.getDisplayObjective(DisplaySlot.SIDEBAR);
+        if (objective == null) return List.of();
+        List<String> lines = new ArrayList<>();
+        for (var entry : board.listPlayerScores(objective)) {
+            var team = board.getPlayersTeam(entry.owner());
+            String suffix = entry.numberFormatOverride() instanceof FixedFormat fixed ? " " + fixed.value().getString() : "";
+            if (team != null) {
+                lines.add(team.getPlayerPrefix().getString() + team.getPlayerSuffix().getString() + suffix);
+            }
+            if (!entry.isHidden()) lines.add(PlayerTeam.formatNameForTeam(team,entry.ownerName()).getString() + suffix);
+        }
+        return lines;
+    }
+
     private void endRun(String reason,boolean interrupted) {
         if(!session.inDungeon()) return;
-        purse.flush(now(),true,session.loot()::addCoins);
+        purse.leaveDungeon(now(), interrupted, session.loot()::addCoins);
         session.leaveDungeon(reason,interrupted);
         leftAt=now();essenceBalances.leave();
-        inventoryReady=false; purse.reset(); pickups.reset(); giantEntities.clear();
+        inventoryReady=false; pickups.reset(); giantEntities.clear();
     }
 
     private void scanInventory(Minecraft client,long now) {
@@ -163,23 +235,33 @@ public final class GameTracker {
     private void scanGiants(Minecraft client) {
         for(Entity entity:client.level.entitiesForRendering()) {
             // A fragment on the ground (or a player with an unusual name) is not a live giant.
-            if(!(entity instanceof LivingEntity living) || entity==client.player || !entity.hasCustomName()) continue;
-            String name=Signals.clean(entity.getCustomName().getString());
+            String name;
+            if (entity instanceof Display.TextDisplay display && display.textRenderState() != null) {
+                name = Signals.clean(display.textRenderState().text().getString());
+            } else if ((entity instanceof ArmorStand || entity instanceof net.minecraft.world.entity.monster.Giant) && entity.hasCustomName()) {
+                name = Signals.clean(entity.getCustomName().getString());
+            } else continue;
             Giant type=Giant.fromName(name);
             if(type==null || name.contains("Handle") || name.contains("Eye") || name.contains("Rock") || name.contains("Bola")) continue;
-            if(!(entity instanceof ArmorStand) && !(entity instanceof net.minecraft.world.entity.monster.Giant)) continue;
             session.observeGiant(type);
-            boolean newlySeen=giantEntities.put(entity.getId(),type)==null;
-            if(entity instanceof ArmorStand) {
-                // Hypixel often uses a separate armor stand for the name/health tag.
-                Entity nearest=null; double distance=144;
-                for(Entity candidate:client.level.entitiesForRendering()) if(newlySeen && candidate instanceof net.minecraft.world.entity.monster.Giant) {
-                    double d=candidate.distanceToSqr(entity);
-                    if(d<distance) { distance=d; nearest=candidate; }
+            if(!(entity instanceof net.minecraft.world.entity.monster.Giant living)) {
+                // The label can arrive first. Keep looking until the actual giant spawns beside it.
+                if (!giantEntities.containsValue(type)) {
+                    Entity nearest = null;
+                    double distance = 144;
+                    for (Entity candidate : client.level.entitiesForRendering()) {
+                        if (candidate instanceof net.minecraft.world.entity.monster.Giant && candidate.distanceToSqr(entity) < distance) {
+                            nearest = candidate;
+                            distance = candidate.distanceToSqr(entity);
+                        }
+                    }
+                    if (nearest != null) giantEntities.put(nearest.getId(), type);
                 }
-                if(nearest!=null) giantEntities.put(nearest.getId(),type);
                 if(name.matches(".*(?:\\s|^)(?:0|0/[^ ]+)\\s*[❤♥].*")) session.giantDefeated(type);
-            } else if(living.isDeadOrDying()) session.giantDefeated(type);
+            } else {
+                giantEntities.put(entity.getId(), type);
+                if (living.isDeadOrDying()) session.giantDefeated(type);
+            }
         }
     }
 
@@ -190,10 +272,20 @@ public final class GameTracker {
         if(type!=null) session.giantDefeated(type);
     }
 
-    public void chat(String text,boolean overlay) {
-        if(!session.running() || overlay) return;
+    public void serverMessage(Minecraft client, String text) {
+        if (client.level == null || !onHypixel(client)) return;
         long now=now();
+        syncWorld(client, now);
         String clean=Signals.clean(text);
+        presence.announce(Signals.announcedFloor(clean), now);
+        if (clean.startsWith("Sending to server ") && clean.endsWith("...")) {
+            transferring = true;
+            if (session.inDungeon() && client.player != null) scanInventory(client, now);
+        }
+        if (clean.startsWith("[NPC] Mort: ") || clean.startsWith("[BOSS] The Watcher: ")) {
+            presence.observe(Signals.Area.DUNGEON, now);
+        }
+        if (!session.running()) return;
         if(Signals.externalMoney(clean)) purse.excludeTransaction(now);
         if(clean.startsWith("[Bazaar]") && clean.contains("Essence")) essenceBalances.invalidate();
         if(clean.startsWith("You salvaged ")) { salvageUntil=now+2_000; return; }

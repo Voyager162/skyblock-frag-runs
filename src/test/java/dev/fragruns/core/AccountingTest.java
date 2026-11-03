@@ -34,6 +34,29 @@ class AccountingTest {
     @Test void observedCoinLossReducesProfitAndNewWorldResetsBalance() {
         var p=new PurseTracker();p.observe(50_000,0);p.observe(49_000,100);p.flush(2_000,false,v->assertEquals(-1000,v));p.reset();p.observe(500_000,5_000);p.flush(8_000,true,v->fail());
     }
+    @Test void hiddenPurseUsesExactReturnBalanceOnce() {
+        var purse = new PurseTracker();
+        var ledger = new LootLedger();
+        purse.observeOutside(1_000_000, 0);
+        purse.enterDungeon(4_000);
+        purse.observe(1_020_000, 12_000);
+        purse.leaveDungeon(66_000, false, ledger::addCoins);
+        purse.observeOutside(1_080_000, 68_000);
+        purse.observeOutside(1_500_000, 69_000);
+        purse.flush(70_000, false, ledger::addCoins);
+        assertEquals(80_000,ledger.snapshot().coins());
+    }
+    @Test void disconnectLateReturnAndTransactionsCannotCreateHubIncome() {
+        for (String ending : java.util.List.of("disconnect","late","transaction")) {
+            var purse = new PurseTracker();
+            purse.observeOutside(1_000, 0);
+            purse.enterDungeon(1_000);
+            purse.leaveDungeon(30_000, ending.equals("disconnect"), value -> fail());
+            if (ending.equals("transaction")) purse.excludeTransaction(30_100);
+            purse.observeOutside(500_000, ending.equals("late") ? 50_000 : 31_000);
+            purse.flush(60_000, true, value -> fail(ending));
+        }
+    }
     @Test void livePricesRevalueAllHarvestedLoot() {
         var l=new LootLedger();l.addItem("FRAG","Fragment",3,null,0,50_000);l.addCoins(80_000);
         assertEquals(380_000,l.value(Map.of("FRAG",100_000.0),0,true).total());assertEquals(680_000,l.value(Map.of("FRAG",200_000.0),0,true).total());

@@ -8,9 +8,39 @@ public final class PurseTracker {
     private record Change(long at, double amount) {}
     private final ArrayDeque<Change> pending = new ArrayDeque<>();
     private Double last;
+    private Double outsideBalance;
+    private long outsideAt, returnUntil = Long.MIN_VALUE;
     private long excludeUntil = -1;
-    public void reset() { pending.clear(); last = null; excludeUntil = -1; }
-    public void excludeTransaction(long now) { pending.clear(); excludeUntil = now + 2_000; }
+    public void reset() {
+        pending.clear();
+        last = outsideBalance = null;
+        returnUntil = Long.MIN_VALUE;
+        excludeUntil = -1;
+    }
+    public void excludeTransaction(long now) {
+        pending.clear();
+        last = outsideBalance = null;
+        returnUntil = Long.MIN_VALUE;
+        excludeUntil = now + 2_000;
+    }
+    public void enterDungeon(long now) {
+        last = now - outsideAt <= 10_000 ? outsideBalance : null;
+        outsideBalance = null;
+        returnUntil = Long.MIN_VALUE;
+    }
+    public void leaveDungeon(long now, boolean interrupted, DoubleConsumer sink) {
+        flush(now, true, sink);
+        returnUntil = interrupted ? Long.MIN_VALUE : now + 10_000;
+    }
+    /** If the dungeon hides the purse, reconcile the first exact balance back in the hub. */
+    public void observeOutside(double balance, long now) {
+        if (!Double.isFinite(balance) || balance < 0) return;
+        if (now <= returnUntil) observe(balance, now);
+        returnUntil = Long.MIN_VALUE;
+        outsideBalance = balance;
+        outsideAt = now;
+        last = null;
+    }
     public void observe(double purse, long now) {
         if (!Double.isFinite(purse) || purse < 0) return;
         if (last != null && now > excludeUntil) {

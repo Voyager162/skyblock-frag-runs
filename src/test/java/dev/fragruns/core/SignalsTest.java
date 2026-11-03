@@ -8,10 +8,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SignalsTest {
     @Test void onlyNormalF7OnSkyblockStartsARun() {
-        assertTrue(Signals.isF7("§e§lSKYBLOCK",List.of("§7⏣ The Catacombs §c(F7)")));
-        assertFalse(Signals.isF7("SKYBLOCK",List.of("The Catacombs (M7)")));
-        assertFalse(Signals.isF7("SKYBLOCK",List.of("The Catacombs (F6)")));
-        assertFalse(Signals.isF7("BED WARS",List.of("The Catacombs (F7)")));
+        assertEquals(Signals.Area.F7,Signals.area(List.of("§7⏣ The Catacombs §c(F7)")));
+        assertEquals(Signals.Area.OTHER_FLOOR,Signals.area(List.of("The Catacombs (M7)")));
+        assertEquals(Signals.Area.OTHER_FLOOR,Signals.area(List.of("The Catacombs (F6)")));
+        assertEquals(Signals.Area.UNKNOWN,Signals.area(List.of("Party > Player: The Catacombs (F7)")));
     }
     @Test void purseHandlesCommasAndDecimalsButRejectsRoundedAmounts() {
         assertEquals(1_234_567.8,Signals.purse(List.of("§6Purse: §e1,234,567.8 (+22)" )).orElseThrow());

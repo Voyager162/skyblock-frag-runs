@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 — F7 entry, session history, and run pace
+
+- Recognize the server's Floor VII announcement before chat filters, then start timing at the transfer into the dungeon. Read team-formatted sidebar rows and tab floor markers, and keep a confirmed run through incomplete sidebar updates.
+- Track modern giant name labels and reconcile exact purse balances across a run when the dungeon hides the purse.
+- Clear saved history from Settings or Run history with confirmation. An active session keeps running.
+- Project giant-fragment coins/hour from expected value per encounter, average recorded F7 run time, and the share of runs that finish a giant. Collected mode uses actual session profit and time.
+
 ## 1.1.0 — Expected giant-fragment income
 
 - Added **Settings → Giant fragment profit/h: Expected drops / Collected drops**.

@@ -17,7 +17,6 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -60,8 +59,7 @@ public final class FragRunsClient implements ClientModInitializer {
             long now=System.nanoTime()/1_000_000;
             if(session.running() && now-savedAt>=10_000) { store.saveSession(session); savedAt=now; }
         });
-        ClientReceiveMessageEvents.GAME.register((message,overlay)->tracker.chat(message.getString(),overlay));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler,client)->{ tracker.disconnected(); store.saveSession(session); });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler,client)->{ tracker.disconnected(handler.getConnection()); store.saveSession(session); });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client->{
             if(session.running()) { tracker.finishSession(); session.stop(); }
             store.saveSession(session); store.saveConfig(config); market.close();

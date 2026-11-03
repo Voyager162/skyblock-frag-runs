@@ -109,6 +109,13 @@ public final class Session {
     public boolean confirmingStop() { return running && confirmUntil >= clock.getAsLong(); }
     public long confirmRemainingMs() { return Math.max(0, confirmUntil - clock.getAsLong()); }
     public void cancelConfirmation() { confirmUntil = -1; }
+    public void clearSaved() {
+        if (running) throw new IllegalStateException("A session is running");
+        id = "";
+        elapsedBase = 0;
+        runs.clear();
+        loot.clear();
+    }
     public String id() { return id; }
     public List<Run> runs() { return List.copyOf(runs); }
     public LootLedger loot() { return loot; }

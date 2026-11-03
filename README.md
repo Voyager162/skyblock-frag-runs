@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Prerelease 1.1.0:** 90 automated tests pass. Authenticated Hypixel F7 tracking has not yet been playtested. See [validation details](VALIDATION.md) for pack checks, limitations, and a live-play checklist.
+**Prerelease 1.2.0** fixes a missed F7 entry reported with SkyBlock Enhanced. Live verification of the fix on Hypixel is pending. [Validation details](VALIDATION.md)
 
-[Download v1.1.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.1.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.2.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.2.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Download `skyblock-frag-runs-1.1.0.jar` from the GitHub release and copy it into the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance in Modrinth. If building locally, the file is in `build/libs/`. When upgrading, remove the old Frag Runs JAR from `mods` so only one version is installed; keep `config/fragruns/` to retain sessions and settings.
+2. Download `skyblock-frag-runs-1.2.0.jar` from the GitHub release and replace the previous Frag Runs JAR in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -38,12 +38,12 @@ The design uses original drawing code with the SkyblockAddons palette: cyan `#A0
 ## What the counters mean
 
 - **Session time:** real elapsed time from starting to stopping. It includes time between runs and disconnects while Minecraft remains open. It does not depend on server TPS.
-- **Current run:** starts on detecting Hypixel's `The Catacombs (F7)` scoreboard and stops on leaving that dungeon world. It reads zero outside F7. Master Mode and other floors are excluded. Starting a session midway through F7 times from activation.
+- **Current run** starts on arrival in the dungeon world after a Floor VII announcement, or when the sidebar or tab list identifies normal F7. It stops when you leave. Starting a session midway through a detected F7 times from activation.
 - **Total, fastest, slowest, last, average:** all recorded exits, including early resets. The current run enters these statistics when it ends.
 - **Finished giant encounter:** the giant was identified and its death, matching fragment pickup, or Watcher clear was observed before leaving. Merely seeing a giant and leaving early does not count toward giant statistics. Disconnects and manually stopping inside the dungeon are partial runs.
 - **Giant share:** that giant's finished encounters divided by all finished giant encounters.
 - **Fragment drop rate:** finished encounters with at least one collected matching fragment divided by finished encounters for that giant. Fragment quantity is displayed separately, so a multiple-fragment drop cannot produce a chance above 100%.
-- **Profit/hour:** uses the selected hourly mode below, divided by the entire elapsed session time.
+- **Profit/hour** uses the selected hourly mode below.
 
 The four fragment IDs are `GIANT_FRAGMENT_DIAMOND`, `GIANT_FRAGMENT_LASER`, `GIANT_FRAGMENT_BIGFOOT`, and `GIANT_FRAGMENT_BOULDER`.
 
@@ -51,19 +51,20 @@ The four fragment IDs are `GIANT_FRAGMENT_DIAMOND`, `GIANT_FRAGMENT_LASER`, `GIA
 
 Open **F9 → Settings → Giant fragment profit/h** to switch modes. The choice is saved immediately and can be changed during a session.
 
-- **Expected drops (default):** giant-fragment income uses fixed probabilities and your completed giant encounters per session hour. It does not use your observed giant distribution or fragment drop history. Essence, kill coins, and other loot still use collected values.
+- **Expected drops (default)** projects the value of giant fragments using the average F7 run time on the HUD, your share of finished encounters, and the probabilities below. Essence, kill coins, and other loot contribute their collected value per elapsed session hour.
 - **Collected drops:** restores the 1.0.0 calculation: all collected loot value divided by the full session time.
 
 The expected model uses a **25% spawn chance for each giant** and a **50% chance of its one-fragment drop**, giving 0.125 expected units of each fragment per finished encounter. It uses current instant-sell prices after your configured tax, with the same untaxed NPC fallback as collected loot when a quote is missing.
 
 ```text
 Expected giant-fragment value per run = 0.125 × sum of the four net fragment prices
-Expected-mode coins/hour =
-  (finished encounters × expected fragment value per run + collected non-giant profit)
-  ÷ elapsed session hours
+Expected fragment coins/hour = expected value per finished encounter
+  × (finished encounters / recorded runs) × (3,600 / average run seconds)
+Expected-mode coins/hour = expected fragment coins/hour
+  + collected non-giant profit / elapsed session hours
 ```
 
-The full elapsed time includes downtime and early resets. Early/partial runs and the live run do not earn expected fragments; the fragment component stays zero until an encounter finishes. The model assumes you finish and collect loot from the randomly selected giant, so selectively skipping giant types can change actual results. The probabilities are fixed model inputs, not live server-provided guarantees.
+A two-minute average gives 30 attempts per hour. If you finished the giant in eight of ten attempts, that projects 24 eligible encounters per hour. The average includes timed early exits and excludes hub downtime. The fragment projection starts after the first finished encounter with a positive average time. Selectively skipping particular giants can affect realized income.
 
 **Only the hourly estimate changes.** Session profit, the profit breakdown, collected quantities, giant percentages, and observed drop rates remain based on actual observations. Expected income is never added to saved loot. Existing 1.0.0 settings gain the new default automatically; selecting Collected drops persists across restarts.
 
@@ -75,7 +76,7 @@ The mod listens to incoming game data; it does not perform actions on your behal
 
 **Drops:** physical item pickup packets and positive inventory changes are reconciled so the same drop is counted once. Inventory is baselined on entering F7; existing items are excluded. Slot rearrangement is aggregated, container transfers are suppressed, and previously seen unique item UUIDs are excluded. This covers giant/boss/dragon fragments, spirit leaps, superboom, and other recognized drops. Loot remains in the session ledger after you sell it.
 
-**Coins:** observed purse changes in F7 include Scavenger/combat coins and observed losses. Known Bazaar, auction, bank, allowance, and trade events are excluded. This is a purse-based estimate, not a per-enchantment API. Abbreviated purse values such as `1.2M` cannot provide precise deltas.
+**Kill coins** use exact purse changes during F7. If the dungeon hides the purse, a recent exact balance before entry and the first exact hub balance within ten seconds after exit can capture the difference. Recognized transactions cancel the comparison. Rounded balances such as `1.2M` cannot supply exact gains.
 
 **Essence:** direct essence messages are counted. If your Dungeon Hub tab list exposes exact essence balances before and after a run, additional silent essence gains are reconciled after returning to the hub. Already-counted chat rewards and actual salvage receipts are subtracted from that balance change. Essence trading invalidates that reconciliation interval. Without those balances, silent essence gains cannot be recovered reliably.
 
@@ -86,6 +87,8 @@ The mod listens to incoming game data; it does not perform actions on your behal
 A failed refresh retains the last good prices while retrying in the background. Price-cache/status messages are omitted from the HUD. No API key, account token, or Hypixel login is requested by this mod.
 
 ## Saves
+
+Open **F9 → Settings → Clear session history** (also available under **Run history**) and confirm **Clear history**. This applies to the current Minecraft profile. During a session it clears older sessions and keeps the active run and loot. After stopping it also clears the displayed last session. Settings and price data are kept.
 
 Files live under the instance's `config/fragruns/` directory:
 

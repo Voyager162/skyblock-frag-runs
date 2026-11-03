@@ -17,6 +17,11 @@ public final class HourlyProfit {
                                    ModConfig config) {
         if (!config.expectedFragmentProfit) return session.profitPerHour(collected.total());
 
+        double otherHourly = session.profitPerHour(collected.otherItems() + collected.essence() + collected.coins());
+        long averageRunMs = session.average();
+        int finished = session.completedRuns();
+        if (averageRunMs <= 0 || finished == 0) return otherHourly;
+
         // Price one of each fragment through the same tax/NPC/missing-price rules as actual loot.
         var basket = new LootLedger();
         for (Giant giant : Giant.values())
@@ -24,8 +29,8 @@ public final class HourlyProfit {
         double expectedPerRun = basket.value(prices, config.bazaarTaxPercent, false).items()
                 * GIANT_SPAWN_CHANCE * FRAGMENT_DROP_CHANCE;
 
-        double otherProfit = collected.otherItems() + collected.essence() + collected.coins();
-        // Early exits and the live run cannot earn an expected fragment. Session time includes downtime.
-        return session.profitPerHour(otherProfit + session.completedRuns() * expectedPerRun);
+        double attemptsPerHour = 3_600_000.0 / averageRunMs;
+        double finishedShare = (double) finished / session.totalRuns();
+        return otherHourly + expectedPerRun * finishedShare * attemptsPerHour;
     }
 }
