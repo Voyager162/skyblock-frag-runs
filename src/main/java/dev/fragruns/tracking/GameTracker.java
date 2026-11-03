@@ -10,7 +10,10 @@ import dev.fragruns.core.PickupReconciler;
 import dev.fragruns.core.PurseTracker;
 import dev.fragruns.core.Session;
 import dev.fragruns.core.Signals;
+import dev.fragruns.core.StashMessages;
 import dev.fragruns.data.ItemCatalog;
+import dev.fragruns.data.SessionStore;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -40,6 +43,7 @@ public final class GameTracker {
     private final EssenceBalances essenceBalances = new EssenceBalances();
     private final DungeonPresence presence = new DungeonPresence();
     private final GiantDrops fragments = new GiantDrops();
+    private final StashTracker stash;
     private final HuntingBox huntingBox = new HuntingBox();
     private final PickupReconciler shardReceipts = new PickupReconciler();
     private long checkBoxUntil = Long.MIN_VALUE;
@@ -59,7 +63,10 @@ public final class GameTracker {
     private long leftAt;
     private int tickCount;
 
-    public GameTracker(Session session, ItemCatalog catalog) { this.session=session; this.catalog=catalog; this.giants=new WatcherGiants(session); }
+    public GameTracker(Session session,ItemCatalog catalog,SessionStore store) {
+        this.session=session; this.catalog=catalog; this.giants=new WatcherGiants(session);
+        stash=new StashTracker(session,store,catalog,fragments);
+    }
     public String location() { return location; }
     public boolean inBossPhase() { return bossPhase; }
     public boolean precisePurse() { return precisePurse; }
@@ -79,6 +86,7 @@ public final class GameTracker {
         inventoryReady = false;
         pickups.reset();
         fragments.reset();
+        fragments.alreadyCredited(session.currentGiant(),session.currentFragments());
         clearShardBaseline();
         purse.reset();
         salvageUntil = 0;
@@ -95,6 +103,7 @@ public final class GameTracker {
         boolean warp = transferring && connection == network && connection.isConnected();
         endRun(warp ? "Left dungeon" : "Disconnected", !warp);
         if (!warp) {
+            stash.disconnect(Minecraft.getInstance(),now());
             presence.reset();
             carriedFragments.clear();
             clearShardBaseline();
@@ -107,6 +116,7 @@ public final class GameTracker {
         location = "Disconnected";
     }
     public void finishSession() {
+        settleFragments(now(),true);
         purse.flush(now(),true,session.loot()::addCoins);
         huntingBox.settle(now(), true, this::creditBoxShard);
     }
@@ -123,6 +133,7 @@ public final class GameTracker {
             location = "Waiting for Hypixel SkyBlock";
             return;
         }
+        stash.tick(client,now);
         List<String> lines = sidebarLines(client.level.getScoreboard(), client.player.getTeam());
         List<String> tab = new ArrayList<>();
         for (var info : client.getConnection().getOnlinePlayers()) {
@@ -178,6 +189,7 @@ public final class GameTracker {
         tickCount++;
         if(!bossPhase && !transferring && tickCount%2==0) for (Entity entity:client.level.entitiesForRendering()) giants.observe(client,entity,now,false);
         if(!inventoryReady || tickCount%2==0) scanInventory(client,now);
+        settleFragments(now,false);
     }
 
     private void observeHuntingBox(Minecraft client, boolean eligible, long now) {
@@ -262,6 +274,7 @@ public final class GameTracker {
 
     private void endRun(String reason,boolean interrupted) {
         if(!session.inDungeon()) return;
+        settleFragments(now(),true);
         purse.leaveDungeon(now(), interrupted, session.loot()::addCoins);
         session.leaveDungeon(reason,interrupted || session.paused());
         if (interrupted || session.paused()) clearShardBaseline();
@@ -295,8 +308,8 @@ public final class GameTracker {
         heldFragments.forEach((giant, held) -> {
             // A server can award a fragment directly even if the giant's name tag was out of render range.
             boolean encounter=session.currentGiant()==giant || watcherAwake && (session.currentGiant()==null || session.inferredGiant());
-            boolean eligible = trackingGains && !bossPhase && encounter;
-            creditFragment(giant, fragments.inventory(giant, held, eligible));
+            boolean eligible = trackingGains && !bossPhase && encounter && !stash.collecting(now);
+            fragments.inventory(giant,held,eligible,now);
         });
         if(trackingGains) {
             for(var entry:current.entrySet()) {
@@ -323,7 +336,7 @@ public final class GameTracker {
         }
         Giant giant = Giant.fromItem(drop.id());
         if (giant != null) {
-            if (!bossPhase) creditFragment(giant, fragments.pickup(giant, amount));
+            if (!bossPhase && !stash.collecting(now())) creditFragment(giant, fragments.pickup(giant, amount));
         } else collect(drop,amount,PickupReconciler.Source.PACKET,now());
     }
 
@@ -332,6 +345,13 @@ public final class GameTracker {
         var item = catalog.get(giant.itemId);
         session.loot().addItem(giant.itemId, giant.fragmentName, count, null, 0, item == null ? 0 : item.npcPrice());
         session.collectFragment(giant, count);
+    }
+    private void settleFragments(long now,boolean finish) {
+        if (session.running() && session.inDungeon()) {
+            for (Giant g:Giant.values()) creditFragment(g,fragments.settle(g,now,finish));
+            Giant giant=session.currentGiant();
+            if (giant!=null && fragments.seenInInventory(giant)) session.stash().physicalInventory(session.currentRunId());
+        }
     }
 
     private void collect(SkyblockItems.Drop drop,int count,PickupReconciler.Source source,long now) {
@@ -359,11 +379,32 @@ public final class GameTracker {
         return entity!=null && session.running() && session.inDungeon() && !bossPhase && !transferring
                 && mc.player!=null && mc.level==lastLevel && entity.level()==lastLevel;
     }
-    public void serverMessage(Minecraft client, String text) {
-        if (client.level == null || !onHypixel(client)) return;
+    public void stashCommand(String command) {
+        var mc=Minecraft.getInstance();
+        if (StashMessages.pickupCommand(command) && mc.player!=null && onHypixel(mc)) stash.begin(mc,now());
+    }
+    public void serverMessage(Minecraft client, Component message) {
+        if (client.level == null || client.player==null || !onHypixel(client)) return;
         long now=now();
         syncWorld(client, now);
-        String clean=Signals.clean(text);
+        String clean=Signals.clean(message.getString());
+        stash.profile(client,clean,now);
+        if (stash.claimMessage(client,message,clean,now)) return;
+        var named=StashMessages.deposited(clean);
+        if (named!=null || StashMessages.overflow(clean)) {
+            if (session.running() && session.inDungeon() && !bossPhase && (watcherAwake || session.currentGiant()!=null)) {
+                String scope=stash.scope(client);
+                var items=StashChat.items(message,named,catalog);
+                if (items.isEmpty()) session.stash().overflow(session.currentRunId(),scope);
+                for (var entry:items.entrySet()) {
+                    var g=entry.getKey();
+                    if (session.currentGiant()!=null && session.currentGiant()!=g && !session.inferredGiant()) continue;
+                    creditFragment(g,fragments.stashed(g,entry.getValue()));
+                    session.stash().deposited(session.currentRunId(),scope,entry.getValue());
+                }
+            }
+            return;
+        }
         presence.announce(Signals.announcedFloor(clean), now);
         if (clean.equals("Warping...") || clean.startsWith("Sending to server ") && clean.endsWith("...")) {
             transferring = true;

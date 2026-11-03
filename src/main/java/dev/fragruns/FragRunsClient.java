@@ -48,7 +48,7 @@ public final class FragRunsClient implements ClientModInitializer {
         store=new SessionStore(FabricLoader.getInstance().getConfigDir().resolve("fragruns"));
         config=store.loadConfig(); store.loadSession(session);
         market=new MarketService(store.directory(),catalog);
-        tracker=new GameTracker(session,catalog);
+        tracker=new GameTracker(session,catalog,store);
         maps=new RunMapRecorder(session,store.maps());
         var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath("fragruns","session"));
         sessionKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.fragruns.session",InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_F7,category));
@@ -141,6 +141,9 @@ public final class FragRunsClient implements ClientModInitializer {
     }
     public void screenKeyReleased(net.minecraft.client.input.KeyEvent event) { if(sessionKey.matches(event)) sessionLatch.release(); }
     public void saveConfig() { store.saveConfig(config); }
+    public Session assignStash(String id,java.util.UUID run) throws java.io.IOException {
+        return store.assignStash(session,id,run,g->{ var item=catalog.get(g.itemId);return item==null?0:item.npcPrice(); });
+    }
     public double hourlyProfit(LootLedger.Valuation collected) {
         return hourlyProfit(session,collected);
     }

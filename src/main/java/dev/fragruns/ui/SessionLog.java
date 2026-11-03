@@ -95,6 +95,17 @@ final class SessionLog {
     }
     void continueButton(GuiGraphicsExtractor g) {
         if (selected()==null) return;
+        if (inRun() && index<selected().totalRuns()) {
+            var run=selected().runs().get(index);
+            if (run.details()!=null && run.fragments()==0 && mod.store().hasStashChoice(selectedId,run.details().id())) {
+                boolean inWorld=Minecraft.getInstance().player!=null;
+                screen.button(g,inWorld?176:14,352,153,20,"Assign stash drop",Theme.GOLD,()->{
+                    try { var updated=mod.assignStash(selectedId,run.details().id());archive=CompletableFuture.completedFuture(updated);notice="Stash fragment assigned to this run."; }
+                    catch(IOException e) { notice="Could not assign the receipt. Reopen the log and retry."; }
+                },"Assign one confirmed stash pickup to the run that earned it.",false);
+                if (!inWorld) return;
+            }
+        }
         if (Minecraft.getInstance().player==null) { Theme.text(g,"Join a world to continue this session.",16,359,Theme.MUTED); return; }
         boolean playing=selectedId.equals(mod.session().id()) && mod.session().running();
         screen.button(g,14,352,150,20,playing?"Return to session":"Continue session",Theme.GREEN,()->continueSelected(),
@@ -194,7 +205,9 @@ final class SessionLog {
             screen.control(g,21,y,508,20,"Run "+(i+1),Theme.BLUE,()->selectRun(i),"Inspect this run's loot and dungeon map.",false);
             Theme.text(g,Integer.toString(i+1),28,y+6,Theme.MUTED); Theme.text(g,Theme.time(r.milliseconds()),68,y+6,Theme.TEXT);
             Theme.fit(g,r.giant()==null?"Unseen":r.giant().label,166,y+6,147,r.giant()==null?Theme.MUTED:r.giant().color,1);
-            Theme.text(g,Integer.toString(r.fragments()),320,y+6,Theme.TEXT);
+            String drops=r.fragments()>0 || r.details()==null?Integer.toString(r.fragments()):s.stash().shared(r.details().id())?"Shared":
+                    mod.store().hasStashChoice(selectedId,r.details().id())?"Unassigned":s.stash().awaiting(r.details().id())?"Pending":"0";
+            Theme.text(g,drops,320,y+6,Theme.TEXT);
             Theme.text(g,r.completed()?"Finished":"Partial",410,y+6,r.completed()?Theme.GREEN:Theme.MUTED);
             Theme.right(g,"›",520,y+5,Theme.BLUE);
         }
@@ -215,6 +228,9 @@ final class SessionLog {
         String giant=r.giant()==null?"Unseen":r.giant().label+(d==null?"":d.giantDefeated()?" • defeated":" • sighted");
         line(g,140,"Giant",giant,r.giant()==null?Theme.MUTED:r.giant().color);
         String drop=r.fragments()>0?r.fragments()+" × "+(r.giant()==null?"fragment":r.giant().fragmentName):
+                d!=null && selected().stash().shared(d.id())?"Stash • in session total":
+                d!=null && mod.store().hasStashChoice(selectedId,d.id())?"Awaiting assignment":
+                d!=null && selected().stash().awaiting(d.id())?"Awaiting stash details":
                 r.completed() || d!=null && d.giantDefeated()?"No drop":"None recorded";
         line(g,157,"Fragment",drop,r.fragments()>0?Theme.GOLD:Theme.TEXT);
         line(g,174,"Exit",r.endReason()==null?"Unknown":r.endReason(),Theme.MUTED);

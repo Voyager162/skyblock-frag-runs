@@ -1,16 +1,17 @@
-# Validation — version 1.6.0
+# Validation — version 1.7.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**133 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**146 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
 | Session | 22 | Entry/exit timing, active and paused clocks, pause/resume inside one run, double presses from either state, the inclusive 1.5-second boundary, key repeats, run statistics, partial stops, and recovery |
 | Accounting | 20 | Pickup/inventory reconciliation, expiring credits, exact pre-run and post-run purse balances, transaction exclusions, interrupted or late returns, coin losses, pricing, salvage, and seven-category profit breakdown |
 | Giant drops | 3 | Carried stacks reappearing across a warp or moving during a kill, matching-encounter evidence, and delayed packet/inventory delivery in both orders |
+| Fragment stash | 13 | All four names, item quantities, generic overflow, profile boundaries, post-stop and restarted sessions, withdrawal order, balance reservations, partial and bulk claims, shared drop rates and single-use assignment across archives |
 | Watcher equipment | 5 | Generic names, partial equipment packets, cycling and static dye, no-drop kills, early exits, fragment confirmation and another giant appearing after a kill |
 | Hunting Box | 4 | Product aliases, personal reward messages, old balances, manual deposits, message/balance reconciliation, pause boundaries and Bazaar valuation under Other items |
 | Hourly projection | 11 | Average run duration across different speeds, hub downtime, finished share, fixed drop odds, original-mode equivalence, other loot per session hour, zero/live runs, repricing, tax, and restored sessions |
@@ -26,6 +27,16 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.7.0
+
+An offline SkyBlock Enhanced client ran the packaged mod through F7 transfers with all 36 regular inventory slots full. The replay used the generic material-stash warning and the named L.A.S.R.'s Eye withdrawal found in gameplay logs.
+
+- An unnamed overflow left the fragment count pending. Collecting an Eye in the hub after ending the session updated its original run, session checkpoint, archive and estimated profit. A Diamante run with an unrelated overflow retained zero Handles.
+- An itemized hover identified a stashed Bigfoot's Bola. The repeated notification and later stash collection left exactly one Bola in the ledger.
+- In a later dungeon, the inventory sync from withdrawing an old Eye arrived before its receipt. It added zero to that run. A subsequent genuine Eye increased the run's loot by one.
+- A fresh client recovered the credited session. A stash withdrawal compatible with two archived sessions offered **Assign stash drop** on both candidate runs. Clicking it credited the selected run and retired the receipt on both.
+- The material-stash menu showed three existing Handles, then four after a matching run. The increase credited one Handle before withdrawal. Collecting the four-Handle stack preserved that single credit and gave a later no-drop run zero Handles.
 
 ### Version 1.6.0
 

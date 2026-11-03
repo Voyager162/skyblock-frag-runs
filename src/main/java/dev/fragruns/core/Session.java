@@ -17,7 +17,10 @@ public final class Session {
         }
     }
     public record GiantStats(int encounters, int fragments, int runsWithDrop, double frequency, double dropRate) {}
-    public record Snapshot(int schema, String id, long elapsedMs, List<Run> runs, LootLedger.Snapshot loot, boolean paused) {
+    public record Snapshot(int schema, String id, long elapsedMs, List<Run> runs, LootLedger.Snapshot loot, boolean paused, FragmentStash.Data stash) {
+        public Snapshot(int schema,String id,long elapsedMs,List<Run> runs,LootLedger.Snapshot loot,boolean paused) {
+            this(schema,id,elapsedMs,runs,loot,paused,null);
+        }
         public Snapshot(int schema, String id, long elapsedMs, List<Run> runs, LootLedger.Snapshot loot) {
             this(schema, id, elapsedMs, runs, loot, false);
         }
@@ -29,6 +32,8 @@ public final class Session {
     private final LongSupplier clock;
     private final List<Run> runs = new ArrayList<>();
     private final LootLedger loot = new LootLedger();
+    private final FragmentStash stash=new FragmentStash();
+    public FragmentStash stash() { return stash; }
     private String id = "";
     private State state = State.STOPPED;
     private long startedAt, elapsedBase;
@@ -79,6 +84,7 @@ public final class Session {
         if (active()) return;
         runs.clear();
         loot.clear();
+        stash.clear();
         elapsedBase = 0;
         startedAt = clock.getAsLong();
         id = java.time.Instant.now().toString().replace(':', '-');
@@ -145,6 +151,32 @@ public final class Session {
                 new Details(current.id,current.wallStart,endedAt,current.killed,loot.since(current.before)));
     }
     public UUID currentRunId() { return current == null ? null : current.id; }
+    Run stashRun(UUID owner) {
+        if (owner.equals(currentRunId())) return recordRun("In progress",false,0);
+        for (int i=runs.size()-1;i>=0;i--) {
+            var r=runs.get(i); if (r.details!=null && owner.equals(r.details.id)) return r;
+        }
+        return null;
+    }
+    /** Resolve an earlier earned reward, including after stopping or while playing another run. */
+    void creditStash(UUID owner,Giant giant,int count,double npcPrice) {
+        Consumer<LootLedger> add=l->l.addItem(giant.itemId,giant.fragmentName,count,null,0,npcPrice);
+        if (owner!=null && owner.equals(currentRunId())) { current.fragments+=count; add.accept(loot); return; }
+        if (owner!=null && !assignArchivedFragment(owner,giant,count,npcPrice)) return;
+        add.accept(loot); if (current!=null) add.accept(current.before);
+    }
+    boolean assignArchivedFragment(UUID owner,Giant giant,int count,double npcPrice) {
+        for (int i=runs.size()-1;i>=0;i--) {
+            Run r=runs.get(i);var d=r.details;
+            if (d==null || !owner.equals(d.id)) continue;
+            var rewards=new LootLedger();rewards.restore(d.loot);
+            rewards.addItem(giant.itemId,giant.fragmentName,count,null,0,npcPrice);
+            runs.set(i,new Run(r.milliseconds,r.giant,r.completed,r.fragments+count,r.endReason,
+                    new Details(d.id,d.startedAt,d.endedAt,d.giantDefeated,rewards.snapshot())));
+            return true;
+        }
+        return false;
+    }
     public UUID rewardOwner() { return current == null ? lastFinished : current.id; }
     /** A reward seen on return to the hub can settle after the next run has already begun. */
     public void credit(UUID owner, Consumer<LootLedger> add) {
@@ -180,6 +212,7 @@ public final class Session {
     public boolean active() { return state != State.STOPPED; }
     public boolean inDungeon() { return current != null; }
     public Giant currentGiant() { return current == null ? null : current.giant; }
+    public int currentFragments() { return current==null?0:current.fragments; }
     public boolean inferredGiant() { return current!=null && current.inferred; }
     public boolean giantKilled() { return current != null && current.killed; }
     public boolean confirmingStop() { return active() && confirmUntil >= clock.getAsLong(); }
@@ -192,6 +225,7 @@ public final class Session {
         elapsedBase = 0;
         runs.clear();
         loot.clear();
+        stash.clear();
     }
     public String id() { return id; }
     public List<Run> runs() { return List.copyOf(runs); }
@@ -211,6 +245,8 @@ public final class Session {
             List<Run> matching = runs.stream().filter(r -> r.completed && r.giant == giant).toList();
             int drops = matching.stream().mapToInt(Run::fragments).sum();
             int withDrop = (int) matching.stream().filter(r -> r.fragments > 0).count();
+            int shared=stash.sharedCount(giant,matching);
+            drops+=shared; withDrop+=shared;
             result.put(giant, new GiantStats(matching.size(), drops, withDrop,
                     eligible == 0 ? 0 : matching.size() * 100.0 / eligible,
                     matching.isEmpty() ? 0 : withDrop * 100.0 / matching.size()));
@@ -227,7 +263,7 @@ public final class Session {
     private Snapshot snapshot(String reason,long endedAt,boolean paused) {
         List<Run> saved=new ArrayList<>(runs);
         if(current!=null) saved.add(recordRun(reason,false,endedAt));
-        return new Snapshot(1,id,elapsedMs(),List.copyOf(saved),loot.snapshot(),paused);
+        return new Snapshot(1,id,elapsedMs(),List.copyOf(saved),loot.snapshot(),paused,stash.snapshot());
     }
 
     /** Explicit pauses remain resumable. An interrupted live checkpoint recovers as stopped. */
@@ -244,7 +280,9 @@ public final class Session {
                 new LootLedger().restore(r.details.loot);
             }
         }
+        FragmentStash.validate(s.stash,seen);
         loot.restore(s.loot);
+        stash.restore(s.stash);
         id = s.id == null ? "" : s.id;
         elapsedBase = s.elapsedMs;
         runs.clear();

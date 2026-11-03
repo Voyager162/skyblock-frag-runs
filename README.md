@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Version 1.6.0** confirms dungeon transfers before logging a run, identifies Watcher giants from their equipment, and renders archived maps from dungeon data. [Validation details](VALIDATION.md)
+**Version 1.7.0** tracks giant fragments sent to the stash when your inventory is full. A later stash receipt can update the run that earned it, even after you end the session. [Validation details](VALIDATION.md)
 
-[Download v1.6.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.6.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.7.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.7.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Put `skyblock-frag-runs-1.6.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.7.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -85,7 +85,11 @@ Probability references: [Watcher giant spawn table](https://hypixelskyblock.mine
 
 ## Profit accounting
 
-Fragment subtotals show the quantity actually credited, such as **Diamante's Handle ×1**. In **Separate by giant** mode, hover over a fragment row in **F9 → Loot & profit** to see the current Bazaar instant-sell quote per unit before tax. The row total includes the configured sell tax. A giant kill confirms an encounter. A Handle requires a pickup addressed to your player or a new inventory high during the matching giant encounter.
+Fragment subtotals show the quantity actually credited, such as **Diamante's Handle ×1**. In **Separate by giant** mode, hover over a fragment row in **F9 → Loot & profit** to see the current Bazaar instant-sell quote per unit before tax. A giant kill confirms the encounter. A personal pickup, matching inventory gain or itemized stash reward confirms a fragment.
+
+**Full inventory and stash.** An itemized overflow credits the fragment immediately. Hypixel also sends a generic overflow notice that omits the item name. The run shows **Pending** until collecting the stash identifies the fragment or a visible material-stash balance increases from a known baseline. You can open the material stash yourself with `/viewstash material`. The tracker remembers observed existing stock and reconciles withdrawals with inventory changes.
+
+If one run matches the collected fragment, that run, its session profit and its giant drop rate update together. If several runs in one session could have earned it, the session gets the confirmed quantity and the individual runs show **Shared**. If the possible runs span different sessions, open the run that earned it in **F9 → Session log** and click **Assign stash drop**. Stash evidence is recorded starting in v1.7.0.
 
 **Hunting Box shards** appear under **Other items** at their individual Bazaar prices. Personal F7 capture, charm and loot-share messages can record earnings while the box is closed. To include silent gains, open the relevant box page during the session before earning the shards and revisit it in F7 or within one minute of returning. Each visible shard needs a starting balance. The tracker reconciles balance changes with observed captures and deposits. Opening a new page establishes its starting balances. Pausing resets these comparisons.
 
@@ -114,6 +118,7 @@ Files live under the instance's `config/fragruns/` directory:
 - `session.json.bak`: previous checkpoint.
 - `history/*.json`: archived sessions.
 - `maps/<run-id>.json` holds the room layout or server map palette and decorations for that run.
+- `stash/` holds observed fragment balances for each player and SkyBlock profile. `stash-choices.json` keeps confirmed receipts awaiting assignment across sessions.
 - `prices.json`: last good price cache.
 
 Writes replace files atomically when supported. An explicitly paused session can resume after restarting Minecraft. A live session recovered after interruption opens as stopped, and its unfinished run is retained as partial up to the latest checkpoint. Offline time is excluded.

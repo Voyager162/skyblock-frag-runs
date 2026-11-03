@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.0 — Giant fragments in the stash
+
+- Count all four giant fragment types sent to the stash with a full inventory. Itemized notifications credit immediately. A generic overflow can be matched later to a named collection or an observed increase in the material stash.
+- Update the earning run, its drop statistics and collected profit after a warp, session stop or restart. Observe stash withdrawals alongside inventory updates to avoid double counting.
+- Preserve ambiguity when a bulk claim covers several possible runs. A shared receipt contributes to the matching session total. Receipts spanning sessions can be assigned in the run log.
+
 ## 1.6.0 — Dungeon transfers, Watcher giants and rendered maps
 
 - Confirm F7 in the destination world before starting a run. Keep the arrival time when confirmed and ignore transient hub or floor rows during transfers.

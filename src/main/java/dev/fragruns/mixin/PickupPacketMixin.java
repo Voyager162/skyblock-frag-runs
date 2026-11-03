@@ -22,8 +22,12 @@ public abstract class PickupPacketMixin {
     @Inject(method="handleSystemChat",at=@At(value="INVOKE",target="Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V",shift=At.Shift.AFTER))
     private void fragruns$serverMessage(ClientboundSystemChatPacket packet, CallbackInfo ci) {
         if (!packet.overlay() && FragRunsClient.INSTANCE != null) {
-            FragRunsClient.INSTANCE.tracker().serverMessage(Minecraft.getInstance(), packet.content().getString());
+            FragRunsClient.INSTANCE.tracker().serverMessage(Minecraft.getInstance(), packet.content());
         }
+    }
+    @Inject(method="sendCommand",at=@At("HEAD"))
+    private void fragruns$stashCommand(String command,CallbackInfo ci) {
+        if (FragRunsClient.INSTANCE!=null) FragRunsClient.INSTANCE.tracker().stashCommand(command);
     }
     // After the thread check, before vanilla removes/decrements the item entity.
     @Inject(method="handleTakeItemEntity",at=@At(value="INVOKE",target="Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V",shift=At.Shift.AFTER))

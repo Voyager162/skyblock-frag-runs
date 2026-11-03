@@ -2,6 +2,8 @@ package dev.fragruns.data;
 
 import dev.fragruns.core.ModConfig;
 import dev.fragruns.core.Session;
+import dev.fragruns.core.FragmentStash;
+import dev.fragruns.core.Giant;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +20,8 @@ public final class SessionStore {
     private final Path directory;
     private final RunMaps maps;
     private String warning = "";
+    private java.util.Set<String> stashArchives;
+    private List<FragmentStash.Choice> stashChoices;
     public SessionStore(Path directory) { this.directory = directory; maps = new RunMaps(directory.resolve("maps")); }
     public RunMaps maps() { return maps; }
     public Path directory() { return directory; }
@@ -49,6 +53,20 @@ public final class SessionStore {
         catch (IOException e) { warning = "Could not preserve damaged save: " + e.getMessage(); }
     }
     public void saveConfig(ModConfig config) { config.sanitize(); save(directory.resolve("settings.json"), config); }
+    public record StashStock(java.util.Map<Giant,Integer> balances,java.util.Map<Giant,Integer> old,boolean knownEmpty) {
+        public StashStock { balances=java.util.Map.copyOf(balances);old=java.util.Map.copyOf(old); }
+    }
+    private Path stockFile(String scope) {
+        var key=java.util.UUID.nameUUIDFromBytes(scope.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return directory.resolve("stash").resolve(key+".json");
+    }
+    public StashStock loadStashStock(String scope) {
+        var file=stockFile(scope);
+        if (Files.isRegularFile(file,LinkOption.NOFOLLOW_LINKS)) try { return JsonFiles.read(file,StashStock.class); }
+        catch (IOException e) { warning="Could not read the previous stash balances."; }
+        return new StashStock(java.util.Map.of(),java.util.Map.of(),false);
+    }
+    public void saveStashStock(String scope,StashStock stock) { save(stockFile(scope),stock); }
     public void saveSession(Session session) {
         if (!session.id().isBlank()) save(directory.resolve("session.json"), session.snapshot());
     }
@@ -57,7 +75,82 @@ public final class SessionStore {
         catch (IOException e) { warning = "Could not archive session: " + e.getMessage(); }
     }
     public void archiveChecked(Session session) throws IOException {
-        if (!session.id().isBlank()) JsonFiles.write(archivePath(session.id()), session.snapshot());
+        if (!session.id().isBlank()) {
+            JsonFiles.write(archivePath(session.id()), session.snapshot());
+            indexStash(session);
+        }
+    }
+    private void indexStash(Session s) {
+        if (stashArchives==null) return;
+        if (s.stash().outstanding()) stashArchives.add(s.id()); else stashArchives.remove(s.id());
+    }
+    /** Only archives with unresolved stash evidence need opening after the initial index. */
+    private List<Session> stashSessions(Session live) throws IOException {
+        var sessions=new ArrayList<Session>(); sessions.add(live);
+        if (stashArchives==null) {
+            var found=new java.util.LinkedHashSet<String>();
+            Path history=directory.resolve("history");
+            if (Files.isDirectory(history,LinkOption.NOFOLLOW_LINKS)) try (var paths=Files.newDirectoryStream(history,"*.json")) {
+                for (Path file:paths) {
+                    String name=file.getFileName().toString(), id=name.substring(0,name.length()-5);
+                    if (id.equals(live.id()) || !Files.isRegularFile(file,LinkOption.NOFOLLOW_LINKS)) continue;
+                    try {
+                        Session s=readArchived(id);
+                        if (s.stash().outstanding()) {found.add(id);sessions.add(s);}
+                    } catch (IOException e) { warning="Could not check an unreadable session for stash drops."; }
+                }
+            }
+            stashArchives=found;
+            indexStash(live);
+        } else for (String id:List.copyOf(stashArchives)) {
+            if (!id.equals(live.id())) sessions.add(readArchived(id));
+        }
+        return sessions;
+    }
+    public boolean hasStashEvidence(Session live,String scope,Giant giant) throws IOException {
+        return stashSessions(live).stream().anyMatch(s->s.stash().hasEvidence(s,scope,giant));
+    }
+    public FragmentStash.Result settleStash(Session live,String scope,java.util.Map<Giant,Integer> received,
+                                             boolean emptied,boolean fromBalance,java.util.function.ToDoubleFunction<Giant> price) throws IOException {
+        var result=FragmentStash.settle(stashSessions(live),scope,received,emptied,fromBalance,choices(),price);
+        if (!result.choices().isEmpty()) {
+            var all=new ArrayList<>(choices());all.addAll(result.choices());saveChoices(all);
+        }
+        for (Session s:result.changed()) saveStashSession(live,s);
+        return result;
+    }
+    private void saveStashSession(Session live,Session s) throws IOException {
+        if (s==live) JsonFiles.write(directory.resolve("session.json"),s.snapshot());
+        if (s!=live || !s.active()) archiveChecked(s);
+    }
+    private List<FragmentStash.Choice> choices() throws IOException {
+        if (stashChoices==null) {
+            Path file=directory.resolve("stash-choices.json");
+            stashChoices=Files.isRegularFile(file,LinkOption.NOFOLLOW_LINKS)?List.of(JsonFiles.read(file,FragmentStash.Choice[].class)):List.of();
+        }
+        return stashChoices;
+    }
+    private void saveChoices(List<FragmentStash.Choice> list) throws IOException {
+        JsonFiles.write(directory.resolve("stash-choices.json"),list);stashChoices=List.copyOf(list);
+    }
+    public boolean hasStashChoice(String id,java.util.UUID run) {
+        var target=new FragmentStash.Target(id,run);
+        try { return choices().stream().anyMatch(c->c.accepts(target)); }
+        catch (IOException e) { warning="Could not read pending stash receipts."; return false; }
+    }
+    public Session assignStash(Session live,String id,java.util.UUID run,java.util.function.ToDoubleFunction<Giant> price) throws IOException {
+        var target=new FragmentStash.Target(id,run);
+        var all=new ArrayList<>(choices());
+        var choice=all.stream().filter(c->c.accepts(target)).findFirst().orElseThrow(()->new IOException("Receipt already assigned"));
+        int index=all.indexOf(choice);
+        Session selected=id.equals(live.id())?live:readArchived(id);
+        var locked=new FragmentStash.Choice(choice.id(),choice.giant(),choice.targets(),target);
+        // Pin the destination before crediting. Retrying after a crash cannot award the same receipt to another run.
+        all.set(index,locked); saveChoices(all);
+        if (!FragmentStash.applyChoice(selected,locked,target,price)) throw new IOException("Run unavailable");
+        saveStashSession(live,selected);
+        all.remove(index);saveChoices(all);
+        return selected;
     }
     private Path archivePath(String id) throws IOException {
         if (id == null || !id.matches("[a-zA-Z0-9._-]{1,128}")) throw new IOException("Invalid session ID");
@@ -118,7 +211,7 @@ public final class SessionStore {
             return;
         }
         var selected = readArchived(id).snapshot();
-        if (!live.id().isBlank()) JsonFiles.write(archivePath(live.id()),live.switchingAway());
+        if (!live.id().isBlank()) { JsonFiles.write(archivePath(live.id()),live.switchingAway()); indexStash(live); }
         JsonFiles.write(directory.resolve("session.json"),selected);
         live.restore(selected);
         live.resumeSaved();
@@ -128,6 +221,9 @@ public final class SessionStore {
 
     /** Clear this profile's past sessions. A live session keeps its in-memory state and a current checkpoint. */
     public void clearHistory(Session session) throws IOException {
+        stashArchives=null;
+        if (Files.isDirectory(directory)) deleteSessionFiles(directory,Pattern.compile("stash-choices\\.json(?:\\.(?:bak|tmp))?"),false);
+        stashChoices=List.of();
         Path history = directory.resolve("history");
         if (Files.exists(history, LinkOption.NOFOLLOW_LINKS)) {
             if (!Files.isDirectory(history, LinkOption.NOFOLLOW_LINKS)
