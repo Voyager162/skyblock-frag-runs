@@ -1,10 +1,10 @@
-# Validation — version 1.7.0
+# Validation — version 1.8.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**146 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**158 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
@@ -12,6 +12,7 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 | Accounting | 20 | Pickup/inventory reconciliation, expiring credits, exact pre-run and post-run purse balances, transaction exclusions, interrupted or late returns, coin losses, pricing, salvage, and seven-category profit breakdown |
 | Giant drops | 3 | Carried stacks reappearing across a warp or moving during a kill, matching-encounter evidence, and delayed packet/inventory delivery in both orders |
 | Fragment stash | 13 | All four names, item quantities, generic overflow, profile boundaries, post-stop and restarted sessions, withdrawal order, balance reservations, partial and bulk claims, shared drop rates and single-use assignment across archives |
+| Hub stash checks | 12 | All four balance deltas, existing stock, unrelated Watcher loot, withdrawals, overlapping receipts, missing baselines, profile boundaries, stopped archives, failed writes, shared gains and assignment to an unseen giant |
 | Watcher equipment | 5 | Generic names, partial equipment packets, cycling and static dye, no-drop kills, early exits, fragment confirmation and another giant appearing after a kill |
 | Hunting Box | 4 | Product aliases, personal reward messages, old balances, manual deposits, message/balance reconciliation, pause boundaries and Bazaar valuation under Other items |
 | Hourly projection | 11 | Average run duration across different speeds, hub downtime, finished share, fixed drop odds, original-mode equivalence, other loot per session hour, zero/live runs, repricing, tax, and restored sessions |
@@ -27,6 +28,18 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.8.0
+
+Two isolated clients used the SkyBlock Enhanced pack with Skyblocker 6.10.4 and 6.11.0. An integrated-server fixture accepted the mod’s actual `/viewstash material` command and sent vanilla container, inventory, transfer and chat packets. The fixture and save files are excluded from the release JAR.
+
+- The session started in the Dungeon Hub with a full inventory. The first stash page contained Young Dragon Fragments. The second held three existing Eyes. A L.A.S.R. kill and unrelated material overflow left the Eye count at zero. Increasing the stored Eyes from three to four on the next F7 credited exactly one Eye before collection and produced a 50% drop rate.
+- Two identical itemized Bola deposits and the subsequent balance check credited one Bola. A Handle found after an unlabelled run updated its stopped session and run detail. Reloading the checkpoint and archive produced matching reports.
+- Instrumentation at Minecraft’s screen installation and mouse release methods detected zero automatic stash screens and zero mouse releases during the reads. Opening the stash manually displayed the normal screen. A delayed automatic response left an already-open dashboard in place.
+- The server recorded page navigation, query location and withdrawals. Every automatic query came from the hub, page input targeted only the labelled navigation arrow, and a later manual pickup added zero to the earlier earnings.
+- On a fifth F7 visit, the player paused the session before an Eye entered the stash. The next hub reading saw the increase and excluded it from session profit.
+
+The client checks use simulated Hypixel responses. Live server wording, menu layout and timings are outside the replay.
 
 ### Version 1.7.0
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.0 — Silent hub stash checks
+
+- Check the four giant-fragment balances when a session begins in the hub and on return from F7. A verified increase updates the earning run, its drop rate and collected profit before pickup.
+- Keep the HUD, mouse and any open screen under the player's control. Background checks wait for menus to close and read the server’s stash pages without displaying them.
+- Exclude existing stock and unrelated Watcher loot. Reconcile itemized deposits, withdrawals and repeated balance reads so each earned fragment contributes once.
+
 ## 1.7.0 — Giant fragments in the stash
 
 - Count all four giant fragment types sent to the stash with a full inventory. Itemized notifications credit immediately. A generic overflow can be matched later to a named collection or an observed increase in the material stash.

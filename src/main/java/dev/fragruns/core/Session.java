@@ -177,6 +177,19 @@ public final class Session {
         }
         return false;
     }
+    /** An itemized balance change in a single observed F7 can identify a previously unnamed giant. */
+    void verifiedStash(UUID owner,Giant giant,int count,boolean normalExit,double price) {
+        if (owner.equals(currentRunId())) {
+            if (current.fragments==0) {current.giant=giant;current.inferred=false;current.killed=true;}
+        } else for (int i=runs.size()-1;i>=0;i--) {
+            var r=runs.get(i);var d=r.details;
+            if (d==null || !d.id.equals(owner)) continue;
+            if (r.fragments==0) runs.set(i,new Run(r.milliseconds,giant,r.completed||normalExit,0,r.endReason,
+                    new Details(d.id,d.startedAt,d.endedAt,true,d.loot)));
+            break;
+        }
+        creditStash(owner,giant,count,price);
+    }
     public UUID rewardOwner() { return current == null ? lastFinished : current.id; }
     /** A reward seen on return to the hub can settle after the next run has already begun. */
     public void credit(UUID owner, Consumer<LootLedger> add) {

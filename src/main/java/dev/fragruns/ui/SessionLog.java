@@ -230,7 +230,7 @@ final class SessionLog {
         String drop=r.fragments()>0?r.fragments()+" × "+(r.giant()==null?"fragment":r.giant().fragmentName):
                 d!=null && selected().stash().shared(d.id())?"Stash • in session total":
                 d!=null && mod.store().hasStashChoice(selectedId,d.id())?"Awaiting assignment":
-                d!=null && selected().stash().awaiting(d.id())?"Awaiting stash details":
+                d!=null && selected().stash().awaiting(d.id())?"Stash unverified":
                 r.completed() || d!=null && d.giantDefeated()?"No drop":"None recorded";
         line(g,157,"Fragment",drop,r.fragments()>0?Theme.GOLD:Theme.TEXT);
         line(g,174,"Exit",r.endReason()==null?"Unknown":r.endReason(),Theme.MUTED);

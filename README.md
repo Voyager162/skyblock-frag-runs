@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Version 1.7.0** tracks giant fragments sent to the stash when your inventory is full. A later stash receipt can update the run that earned it, even after you end the session. [Validation details](VALIDATION.md)
+**Version 1.8.0** checks your material stash in the background when you return to the hub after an F7 run. A newly stashed fragment updates the run and its profit before you pick it up. [Validation details](VALIDATION.md)
 
-[Download v1.7.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.7.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.8.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.8.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Put `skyblock-frag-runs-1.7.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.8.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -87,13 +87,15 @@ Probability references: [Watcher giant spawn table](https://hypixelskyblock.mine
 
 Fragment subtotals show the quantity actually credited, such as **Diamante's Handle ×1**. In **Separate by giant** mode, hover over a fragment row in **F9 → Loot & profit** to see the current Bazaar instant-sell quote per unit before tax. A giant kill confirms the encounter. A personal pickup, matching inventory gain or itemized stash reward confirms a fragment.
 
-**Full inventory and stash.** An itemized overflow credits the fragment immediately. Hypixel also sends a generic overflow notice that omits the item name. The run shows **Pending** until collecting the stash identifies the fragment or a visible material-stash balance increases from a known baseline. You can open the material stash yourself with `/viewstash material`. The tracker remembers observed existing stock and reconciles withdrawals with inventory changes.
+**Full inventory and stash.** Start the session in the Dungeon Hub or Hub and give the tracker a moment to read your starting stock before entering F7. After each run, the tracker requests `/viewstash material` when you return to the hub and your screen is clear. It reads the material slots in the background while you keep control of the game. Opening the stash yourself still brings up the usual menu. [Hypixel’s stash command](https://hypixel.net/threads/skyblock-patch-0-19-1-item-linking-leveling-update-stash-qol-bug-fixes.5422629/)
 
-If one run matches the collected fragment, that run, its session profit and its giant drop rate update together. If several runs in one session could have earned it, the session gets the confirmed quantity and the individual runs show **Shared**. If the possible runs span different sessions, open the run that earned it in **F9 → Session log** and click **Assign stash drop**. Stash evidence is recorded starting in v1.7.0.
+The tracker compares each of the four fragment quantities separately. If three stored L.A.S.R.’s Eyes become four, the run gains one Eye. If only Young Dragon Fragments increase, the run gains zero Eyes. An itemized deposit can still confirm a drop immediately. Collecting the stash later preserves the original credit.
+
+The first complete reading on a connection establishes starting stock. If you start inside F7 or reconnect before the check finishes, existing stock alone cannot identify that run’s drops. An unfinished page or unanswered request leaves the balance unconfirmed. When multiple tracked runs fall between readings, a shared gain can appear in the session total. For a receipt spanning sessions, choose **Assign stash drop** in the earning run’s log.
 
 **Hunting Box shards** appear under **Other items** at their individual Bazaar prices. Personal F7 capture, charm and loot-share messages can record earnings while the box is closed. To include silent gains, open the relevant box page during the session before earning the shards and revisit it in F7 or within one minute of returning. Each visible shard needs a starting balance. The tracker reconciles balance changes with observed captures and deposits. Opening a new page establishes its starting balances. Pausing resets these comparisons.
 
-The mod listens to incoming game data; it does not perform actions on your behalf.
+The background stash check requests the material list, follows identified page controls when needed, and closes its own view. Picking up, selling, and moving materials are player actions.
 
 **Drops:** physical item pickup packets and positive inventory changes are reconciled so the same drop is counted once. Inventory is baselined on entering F7; existing items are excluded. Slot rearrangement is aggregated, container transfers are suppressed, and previously seen unique item UUIDs are excluded. This covers giant/boss/dragon fragments, spirit leaps, superboom, and other recognized drops. Loot remains in the session ledger after you sell it.
 

@@ -2,6 +2,6 @@
   "required": true,
   "package": "dev.fragruns.mixin",
   "compatibilityLevel": "JAVA_25",
-  "client": ["PickupPacketMixin", "SessionKeyboardMixin", "TextDisplayAccessor"],
+  "client": ["PickupPacketMixin", "SessionKeyboardMixin", "TextDisplayAccessor", "StashViewMixin"],
   "injectors": { "defaultRequire": 1 }
 }

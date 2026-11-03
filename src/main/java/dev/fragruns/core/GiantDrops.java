@@ -57,6 +57,9 @@ public final class GiantDrops {
         if (giant!=null) evidence.get(giant).credited=Math.max(evidence.get(giant).credited,count);
     }
     public boolean seenInInventory(Giant giant) { return evidence.get(giant).inventoryGains>0; }
+    public int possiblyStashed(Giant giant) {
+        var e=evidence.get(giant);return Math.max(e.stashed,Math.max(0,e.pickups-e.inventoryGains));
+    }
     public int pickup(Giant giant, int amount) {
         Evidence e = evidence.get(giant);
         e.pickups += Math.max(amount, 0);

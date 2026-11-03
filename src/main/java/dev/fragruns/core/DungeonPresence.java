@@ -7,6 +7,7 @@ public final class DungeonPresence {
     private boolean announcedArrival, leftDungeon;
 
     public boolean inF7() { return entered!=NONE; }
+    public boolean queued(long now) { return queueUntil>=now; }
     public long confirmedAge(long now) { return inF7()?Math.max(0,now-entered):0; }
     public void announce(Signals.Area floor,long now) {
         if (floor==Signals.Area.F7) {

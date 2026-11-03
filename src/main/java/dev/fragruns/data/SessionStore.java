@@ -123,6 +123,23 @@ public final class SessionStore {
         if (s==live) JsonFiles.write(directory.resolve("session.json"),s.snapshot());
         if (s!=live || !s.active()) archiveChecked(s);
     }
+    public FragmentStash.Result applyHubBalances(Session live,java.util.UUID auditId,java.util.Map<FragmentStash.Target,Boolean> interval,
+            java.util.Map<Giant,Integer> gains,java.util.function.ToDoubleFunction<Giant> price) throws IOException {
+        var sessions=new java.util.HashMap<String,Session>();
+        for (var target:interval.keySet()) if (!sessions.containsKey(target.session())) {
+            if (target.session().equals(live.id())) sessions.put(target.session(),live);
+            else if (Files.isRegularFile(archivePath(target.session()),LinkOption.NOFOLLOW_LINKS))
+                sessions.put(target.session(),readArchived(target.session()));
+        }
+        var result=FragmentStash.measured(auditId,sessions,interval,gains,price);
+        if (!result.choices().isEmpty()) {
+            var all=new ArrayList<>(choices());
+            for (var choice:result.choices()) if (all.stream().noneMatch(c->c.id().equals(choice.id()))) all.add(choice);
+            saveChoices(all);
+        }
+        for (var s:result.changed()) saveStashSession(live,s);
+        return result;
+    }
     private List<FragmentStash.Choice> choices() throws IOException {
         if (stashChoices==null) {
             Path file=directory.resolve("stash-choices.json");
@@ -144,7 +161,7 @@ public final class SessionStore {
         var choice=all.stream().filter(c->c.accepts(target)).findFirst().orElseThrow(()->new IOException("Receipt already assigned"));
         int index=all.indexOf(choice);
         Session selected=id.equals(live.id())?live:readArchived(id);
-        var locked=new FragmentStash.Choice(choice.id(),choice.giant(),choice.targets(),target);
+        var locked=new FragmentStash.Choice(choice.id(),choice.giant(),choice.targets(),target,choice.normalExits());
         // Pin the destination before crediting. Retrying after a crash cannot award the same receipt to another run.
         all.set(index,locked); saveChoices(all);
         if (!FragmentStash.applyChoice(selected,locked,target,price)) throw new IOException("Run unavailable");

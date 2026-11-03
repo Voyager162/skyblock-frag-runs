@@ -19,9 +19,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ClientPacketListener.class)
 public abstract class PickupPacketMixin {
     // Observe the original server message once, before chat filters can suppress, compact or reformat it.
-    @Inject(method="handleSystemChat",at=@At(value="INVOKE",target="Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V",shift=At.Shift.AFTER))
+    @Inject(method="handleSystemChat",cancellable=true,at=@At(value="INVOKE",target="Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V",shift=At.Shift.AFTER))
     private void fragruns$serverMessage(ClientboundSystemChatPacket packet, CallbackInfo ci) {
         if (!packet.overlay() && FragRunsClient.INSTANCE != null) {
+            if (FragRunsClient.INSTANCE.tracker().stashView().reply(packet.content().getString())) {ci.cancel();return;}
             FragRunsClient.INSTANCE.tracker().serverMessage(Minecraft.getInstance(), packet.content());
         }
     }

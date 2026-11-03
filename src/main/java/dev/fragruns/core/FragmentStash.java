@@ -14,11 +14,12 @@ public final class FragmentStash {
             if (giant==null || count<1 || count>runs.size()) throw new IllegalArgumentException("Invalid shared stash receipt");
         }
     }
-    public record Data(Map<UUID,Mark> marks,List<Shared> shared) {}
+    public record Data(Map<UUID,Mark> marks,List<Shared> shared,UUID lastHubAudit) {}
     private final Map<UUID,Mark> marks=new LinkedHashMap<>();
     private final List<Shared> shared=new ArrayList<>();
-    public void clear() { marks.clear(); shared.clear(); }
-    public Data snapshot() { return new Data(Map.copyOf(marks),List.copyOf(shared)); }
+    private UUID lastHubAudit;
+    public void clear() { marks.clear(); shared.clear();lastHubAudit=null; }
+    public Data snapshot() { return new Data(Map.copyOf(marks),List.copyOf(shared),lastHubAudit); }
     static void validate(Data data,Set<UUID> known) {
         if (data==null) return;
         if (data.marks==null || data.shared==null || !known.containsAll(data.marks.keySet())
@@ -26,7 +27,7 @@ public final class FragmentStash {
     }
     void restore(Data data) {
         clear();
-        if (data!=null) { marks.putAll(data.marks); shared.addAll(data.shared); }
+        if (data!=null) { marks.putAll(data.marks); shared.addAll(data.shared);lastHubAudit=data.lastHubAudit; }
     }
     public void overflow(UUID run,String scope) {
         if (run!=null && scope!=null) marks.putIfAbsent(run,new Mark(scope,true,0));
@@ -56,10 +57,14 @@ public final class FragmentStash {
     }
     private record Candidate(Session session,UUID run) {}
     public record Target(String session,UUID run) {}
-    public record Choice(UUID id,Giant giant,List<Target> targets,Target selected) {
+    public record Choice(UUID id,Giant giant,List<Target> targets,Target selected,Set<Target> normalExits) {
+        public Choice(UUID id,Giant giant,List<Target> targets,Target selected) {
+            this(id,giant,targets,selected,Set.of());
+        }
         public Choice {
             targets=List.copyOf(targets);
-            if (id==null || giant==null || targets.isEmpty() || selected!=null && !targets.contains(selected))
+            normalExits=normalExits==null?Set.of():Set.copyOf(normalExits);
+            if (id==null || giant==null || targets.isEmpty() || !targets.containsAll(normalExits) || selected!=null && !targets.contains(selected))
                 throw new IllegalArgumentException("Invalid stash receipt");
         }
         public boolean accepts(Target target) { return selected==null?targets.contains(target):selected.equals(target); }
@@ -150,12 +155,59 @@ public final class FragmentStash {
     public static boolean applyChoice(Session session,Choice choice,Target target,ToDoubleFunction<Giant> price) {
         if (!target.equals(choice.selected) || !target.session.equals(session.id())) return false;
         var r=session.stashRun(target.run);
-        if (r==null || r.giant()!=choice.giant || !r.details().giantDefeated()) return false;
-        if (r.fragments()==0) session.creditStash(target.run,choice.giant,1,price.applyAsDouble(choice.giant));
+        if (r==null || r.giant()!=null && r.giant()!=choice.giant) return false;
+        if (r.fragments()==0) session.verifiedStash(target.run,choice.giant,1,r.completed()||choice.normalExits.contains(target),price.applyAsDouble(choice.giant));
         session.stash().physicalInventory(target.run);
         return true;
     }
     private int previous(Giant giant,List<UUID> ids) {
         return shared.stream().filter(s->s.giant==giant && ids.containsAll(s.runs)).mapToInt(Shared::count).sum();
+    }
+    /** Allocate an already measured item-specific gain. Giant type helps locate its run only if several runs intervened. */
+    public static Result measured(UUID auditId,Map<String,Session> sessions,Map<Target,Boolean> interval,Map<Giant,Integer> gains,ToDoubleFunction<Giant> price) {
+        Set<Session> changed=new LinkedHashSet<>();
+        List<Choice> choices=new ArrayList<>();
+        for (var entry:gains.entrySet()) {
+            Giant g=entry.getKey();int n=entry.getValue();if (n<=0) continue;
+            var candidates=new ArrayList<Target>();
+            for (Target t:interval.keySet()) {
+                var s=sessions.get(t.session); if (s==null) continue;
+                var r=s.stashRun(t.run); if (r==null) continue;
+                if (r.giant()==g || r.giant()==null && (interval.size()>1 || gains.size()==1)
+                        || interval.size()==1 && r.fragments()==0 && gains.size()==1)
+                    candidates.add(t);
+            }
+            if (candidates.size()==1) {
+                var t=candidates.getFirst(); var s=sessions.get(t.session);
+                if (!auditId.equals(s.stash().lastHubAudit)) s.verifiedStash(t.run,g,n,interval.get(t),price.applyAsDouble(g));
+                changed.add(s);
+            } else {
+                var owners=new HashSet<String>();
+                for (var t:candidates.isEmpty()?interval.keySet():candidates) owners.add(t.session);
+                if (owners.size()==1) {
+                    var s=sessions.get(owners.iterator().next()); if (s==null) continue;
+                    changed.add(s);if (auditId.equals(s.stash().lastHubAudit)) continue;
+                    // The quantity is certain even if run-level attribution isn't.
+                    s.creditStash(null,g,n,price.applyAsDouble(g));
+                    if (!candidates.isEmpty()) {
+                        var ids=candidates.stream().map(Target::run).toList();
+                        s.stash().shared.add(new Shared(g,Math.min(n,ids.size()),ids));
+                    }
+                } else if (!candidates.isEmpty()) {
+                    Set<Target> normalExits=new HashSet<>(candidates);
+                    normalExits.removeIf(t->!interval.get(t));
+                    for (int i=0;i<Math.min(n,candidates.size());i++) {
+                        UUID id=UUID.nameUUIDFromBytes((auditId+"/"+g+"/"+i).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        choices.add(new Choice(id,g,candidates,null,normalExits));
+                    }
+                }
+            }
+        }
+        for (var t:interval.keySet()) {
+            var s=sessions.get(t.session);
+            if (s!=null && (s.stash().marks.remove(t.run)!=null || auditId.equals(s.stash().lastHubAudit))) changed.add(s);
+        }
+        for (var s:changed) s.stash().lastHubAudit=auditId;
+        return new Result(changed,List.copyOf(choices));
     }
 }

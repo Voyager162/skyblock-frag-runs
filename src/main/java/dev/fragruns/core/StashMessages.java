@@ -11,6 +11,7 @@ public final class StashMessages {
     private static final Pattern QUANTITY=Pattern.compile("(?:(?<before>[0-9][0-9,]*)[x×]\\s+)?(?<name>.+?)(?:\\s+(?:[x×](?<after>[0-9][0-9,]*)|(?<suffix>[0-9][0-9,]*)[x×]))?",Pattern.CASE_INSENSITIVE);
     private StashMessages() {}
     public static boolean overflow(String s) { return OVERFLOW.matcher(s).matches(); }
+    public static boolean materialOverflow(String s) { return overflow(s) && s.toLowerCase(Locale.ROOT).contains("material stash!"); }
     public static Drop deposited(String s) {
         var match=DEPOSIT.matcher(s);
         return match.matches()?item(match.group(1)):null;
@@ -31,6 +32,9 @@ public final class StashMessages {
     }
     public static boolean materialEmptied(String s) {
         return s.equals("You picked up all items from your material stash!") || s.equals("Your material stash is empty!");
+    }
+    public static boolean emptyView(String s) {
+        return s.matches("(?i)(?:Your (?:material )?stash is (?:currently )?empty|There (?:are no (?:items|materials)|is nothing) in your (?:material )?stash|You (?:do not|don't) have (?:any (?:items|materials)|anything) (?:in your (?:material )?stash|stashed(?: away)?)|You have no (?:items|materials) (?:in your (?:material )?stash|stashed(?: away)?))[!.]?");
     }
     public static boolean pickupCommand(String command) {
         String s=command.strip().toLowerCase(Locale.ROOT);

@@ -117,6 +117,7 @@ public final class GameTracker {
     }
     public void finishSession() {
         settleFragments(now(),true);
+        if (session.currentGiant()!=null) stash.booked(session.currentGiant(),fragments.possiblyStashed(session.currentGiant()));
         purse.flush(now(),true,session.loot()::addCoins);
         huntingBox.settle(now(), true, this::creditBoxShard);
     }
@@ -133,7 +134,6 @@ public final class GameTracker {
             location = "Waiting for Hypixel SkyBlock";
             return;
         }
-        stash.tick(client,now);
         List<String> lines = sidebarLines(client.level.getScoreboard(), client.player.getTeam());
         List<String> tab = new ArrayList<>();
         for (var info : client.getConnection().getOnlinePlayers()) {
@@ -147,6 +147,10 @@ public final class GameTracker {
         if (transferring && now>=transferUntil) transferring=false;
         if (!transferring) presence.observe(area, now);
         boolean f7 = presence.inF7();
+        if (area==Signals.Area.OTHER_FLOOR || f7 && !session.running()) stash.untrackedActivity();
+        boolean hub=!f7 && !session.inDungeon() && !transferring && !presence.queued(now) && area==Signals.Area.OUTSIDE
+                && (lines.stream().anyMatch(GameTracker::stashHub) || tab.stream().anyMatch(GameTracker::stashHub));
+        stash.tick(client,hub,now);
         location = f7 ? "The Catacombs • Floor VII" : "Outside Floor VII";
         if (!f7 && !session.inDungeon() && now-leftAt>2_000 && (tab.stream().anyMatch(GameTracker::inHub) || lines.stream().anyMatch(GameTracker::inHub))) {
             var owner = session.rewardOwner();
@@ -160,6 +164,7 @@ public final class GameTracker {
         if (f7 && !transferring && !session.inDungeon()) {
             huntingBox.settle(now,true,this::creditBoxShard);
             session.enterDungeon(presence.confirmedAge(now));
+            stash.entered(client);
             essenceBalances.enter();
             purse.enterDungeon(now);
             pickups.reset();
@@ -223,6 +228,9 @@ public final class GameTracker {
     }
 
     private static boolean inHub(String line) { return Signals.clean(line).endsWith("Dungeon Hub"); }
+    private static boolean stashHub(String line) {
+        return Signals.clean(line).replaceAll("[\\p{Cf}\\p{Co}]","").strip().matches("(?i)(?:(?:[⏣ф]|Area:)\\s*)?(?:Dungeon Hub|Hub|Village)");
+    }
 
     private static boolean onHypixel(Minecraft client) {
         if (client.getConnection() == null) return false;
@@ -237,6 +245,7 @@ public final class GameTracker {
         Connection next = client.getConnection().getConnection();
         if (network != next) {
             endRun("Disconnected", true);
+            if (network!=null) stash.disconnect(client,now);
             presence.reset();
             carriedFragments.clear();
             clearShardBaseline();
@@ -275,6 +284,8 @@ public final class GameTracker {
     private void endRun(String reason,boolean interrupted) {
         if(!session.inDungeon()) return;
         settleFragments(now(),true);
+        if (session.currentGiant()!=null) stash.booked(session.currentGiant(),fragments.possiblyStashed(session.currentGiant()));
+        stash.run(!interrupted && !session.paused());
         purse.leaveDungeon(now(), interrupted, session.loot()::addCoins);
         session.leaveDungeon(reason,interrupted || session.paused());
         if (interrupted || session.paused()) clearShardBaseline();
@@ -381,8 +392,12 @@ public final class GameTracker {
     }
     public void stashCommand(String command) {
         var mc=Minecraft.getInstance();
+        stash.view.command(command);
         if (StashMessages.pickupCommand(command) && mc.player!=null && onHypixel(mc)) stash.begin(mc,now());
     }
+    public SilentStashView stashView() { return stash.view; }
+    public void stashContents(int id,int size) { stash.contents(id,size); }
+    public void stashSlot(int id,int slot) { stash.slot(id,slot); }
     public void serverMessage(Minecraft client, Component message) {
         if (client.level == null || client.player==null || !onHypixel(client)) return;
         long now=now();
@@ -392,21 +407,25 @@ public final class GameTracker {
         if (stash.claimMessage(client,message,clean,now)) return;
         var named=StashMessages.deposited(clean);
         if (named!=null || StashMessages.overflow(clean)) {
+            if ((!session.inDungeon() || !session.running()) && (named!=null || StashMessages.materialOverflow(clean))) stash.untrackedActivity();
             if (session.running() && session.inDungeon() && !bossPhase && (watcherAwake || session.currentGiant()!=null)) {
                 String scope=stash.scope(client);
                 var items=StashChat.items(message,named,catalog);
-                if (items.isEmpty()) session.stash().overflow(session.currentRunId(),scope);
                 for (var entry:items.entrySet()) {
                     var g=entry.getKey();
                     if (session.currentGiant()!=null && session.currentGiant()!=g && !session.inferredGiant()) continue;
                     creditFragment(g,fragments.stashed(g,entry.getValue()));
-                    session.stash().deposited(session.currentRunId(),scope,entry.getValue());
+                    stash.booked(g,entry.getValue());
+                    if (!scope.isEmpty()) session.stash().deposited(session.currentRunId(),scope,entry.getValue());
                 }
             }
             return;
         }
-        presence.announce(Signals.announcedFloor(clean), now);
+        var floor=Signals.announcedFloor(clean);
+        presence.announce(floor,now);
+        if (floor==Signals.Area.F7) stash.view.cancel(client);
         if (clean.equals("Warping...") || clean.startsWith("Sending to server ") && clean.endsWith("...")) {
+            stash.view.cancel(client);
             transferring = true;
             transferUntil=now+15_000;
             if (session.running() && client.player != null) {
