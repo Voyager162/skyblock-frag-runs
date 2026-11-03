@@ -68,7 +68,7 @@ public final class MarketService implements AutoCloseable {
     }
     private JsonObject fetch(String url) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(12))
-                .header("User-Agent","SkyblockFragRuns/1.3.0 (client-side dungeon tracker)").GET().build();
+                .header("User-Agent","SkyblockFragRuns/1.4.0 (client-side dungeon tracker)").GET().build();
         var response = client.send(request,HttpResponse.BodyHandlers.ofString());
         if (response.statusCode()!=200) throw new IOException("HTTP "+response.statusCode());
         if (response.body().length()>15_000_000) throw new IOException("Response too large");

@@ -15,8 +15,11 @@ public final class Layout {
         scale = Double.isFinite(scale) ? Math.clamp(scale,0.5,2.5) : 1;
     }
     public Bounds fit(int viewportW, int viewportH, int baseW, int baseH) {
+        return fit(viewportW, viewportH, baseW, baseH, baseH);
+    }
+    Bounds fit(int viewportW, int viewportH, int baseW, int baseH, int scaleHeight) {
         sanitize();
-        double effective = Math.max(0.05, Math.min(scale, Math.min((viewportW-12.0)/baseW, (viewportH-12.0)/baseH)));
+        double effective = Math.max(0.05, Math.min(scale, Math.min((viewportW-12.0)/baseW, (viewportH-12.0)/scaleHeight)));
         double w = baseW*effective, h = baseH*effective;
         return new Bounds(6 + Math.max(0,viewportW-w-12)*x, 6 + Math.max(0,viewportH-h-12)*y, effective,w,h);
     }

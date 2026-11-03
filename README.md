@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Version 1.3.0** adds pause and resume, prevents carried giant fragments from being counted on the next run, and includes Hunting Box shards in Other items. [Validation details](VALIDATION.md)
+**Version 1.4.0** lets you choose each HUD section and combine giant-fragment income into a single subtotal. [Validation details](VALIDATION.md)
 
-[Download v1.3.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.3.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.4.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.4.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Put `skyblock-frag-runs-1.3.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.4.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -30,7 +30,9 @@ Rebind the keys in **Options → Controls → Key Binds → Skyblock Frag Runs**
 
 ## HUD and layout
 
-The HUD shows session time, current run time, fastest/slowest/last/average run time, total runs, finished/early runs, each giant's count and share, each fragment's count and drop rate, estimated profit, and estimated coins per hour. Its profit breakdown has a row for each of the four giant fragments, **All essence** (found and estimated salvage), **Kill coins**, and **Other items** (including Spirit Leaps, Bonzo/Livid/dragon fragments, and remaining drops). The same categories appear next to the itemized loot list in the optional details screen.
+Open **F9 → Settings → HUD sections**. You can independently show or hide the title and status, session timer, current run timer, run time records, run counts, Watcher giants and drop rates, profit breakdown, total profit, and profit per hour. The panel and its editor shrink as sections are hidden. For a two-row HUD, keep only **Total profit** and **Profit per hour** on. Changes save immediately in the current instance.
+
+Under **Giant fragment profit**, click **Separate by giant** to switch to **One combined total**. The **Giant fragments** row adds the actual collected quantities and after-tax values of all four fragment types. This choice applies to both the HUD and the **Loot & profit** breakdown. Essence, kill coins and other items keep their own rows. All sections start visible with separate fragment rows when installing or upgrading.
 
 Open **Settings → Edit in-game HUD layout**. Drag anywhere in the outlined panel to move it. Scroll, use `+`/`-`, or drag its lower-right corner to resize. Arrow keys move it precisely; `R` resets it; `Esc` or `Enter` saves. Positions are relative to the viewport and clamped to the screen, so changing resolution or GUI scale keeps the panel reachable. The separate details screen has its own layout.
 
@@ -73,7 +75,7 @@ Probability references: [Watcher giant spawn table](https://hypixelskyblock.mine
 
 ## Profit accounting
 
-Fragment subtotals show the quantity actually credited, such as **Diamante's Handle ×1**. Hover over its row in **F9 → Loot & profit** to see the current Bazaar instant-sell quote per unit before tax. The row total includes the configured sell tax. A giant kill confirms an encounter. A Handle requires a pickup addressed to your player or a new inventory high during the matching giant encounter.
+Fragment subtotals show the quantity actually credited, such as **Diamante's Handle ×1**. In **Separate by giant** mode, hover over a fragment row in **F9 → Loot & profit** to see the current Bazaar instant-sell quote per unit before tax. The row total includes the configured sell tax. A giant kill confirms an encounter. A Handle requires a pickup addressed to your player or a new inventory high during the matching giant encounter.
 
 **Hunting Box shards** appear under **Other items** at their individual Bazaar prices. Personal F7 capture, charm and loot-share messages can record earnings while the box is closed. To include silent gains, open the relevant box page during the session before earning the shards and revisit it in F7 or within one minute of returning. Each visible shard needs a starting balance. The tracker reconciles balance changes with observed captures and deposits. Opening a new page establishes its starting balances. Pausing resets these comparisons.
 

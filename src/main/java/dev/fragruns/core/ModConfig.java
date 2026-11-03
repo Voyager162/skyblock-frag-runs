@@ -4,6 +4,7 @@ public final class ModConfig {
     public int schema = 1;
     public Layout dashboard = new Layout(0.5,0.5,1);
     public Layout hud = new Layout(0,0.35,0.85);
+    public HudSettings hudSections = new HudSettings();
     public boolean showHud = true;
     public boolean includeSalvage = true;
     public boolean expectedFragmentProfit = true;
@@ -13,6 +14,8 @@ public final class ModConfig {
     public void sanitize() {
         if (dashboard == null) dashboard = new Layout();
         if (hud == null) hud = new Layout(0,0.35,0.85);
+        if (hudSections == null) hudSections = new HudSettings();
+        hudSections.sanitize();
         dashboard.sanitize(); hud.sanitize();
         bazaarTaxPercent = Double.isFinite(bazaarTaxPercent) ? Math.clamp(bazaarTaxPercent,0,10) : 1.25;
         priceRefreshSeconds = Math.clamp(priceRefreshSeconds,30,600);

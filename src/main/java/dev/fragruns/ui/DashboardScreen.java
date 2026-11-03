@@ -2,6 +2,7 @@ package dev.fragruns.ui;
 
 import dev.fragruns.FragRunsClient;
 import dev.fragruns.core.Giant;
+import dev.fragruns.core.HudSettings.Section;
 import dev.fragruns.core.Layout;
 import dev.fragruns.core.LootLedger;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -25,6 +26,7 @@ public final class DashboardScreen extends Screen {
     private double mouseX,mouseY;
     private String tooltip;
     private String historyNotice = "";
+    private boolean editingSections;
     private record Control(int x,int y,int w,int h,String label,Runnable action) {
         boolean hit(double px,double py) { return px>=x && py>=y && px<x+w && py<y+h; }
     }
@@ -55,7 +57,7 @@ public final class DashboardScreen extends Screen {
         String[] tabs={"Overview","Loot & profit","Run history","Settings"};
         for(int i=0;i<tabs.length;i++) {
             final int target=i;
-            button(g,14+i*132,51,126,20,tabs[i],tab==i?Theme.BLUE:Theme.MUTED,()->{tab=target;page=0;focus=-1;},"",tab==i);
+            button(g,14+i*132,51,126,20,tabs[i],tab==i?Theme.BLUE:Theme.MUTED,()->{tab=target;page=0;focus=-1;editingSections=false;},"",tab==i);
         }
         switch(tab) { case 0->overview(g); case 1->loot(g); case 2->history(g); default->settings(g); }
         g.fill(14,326,WIDTH-14,327,Theme.LINE);
@@ -113,24 +115,31 @@ public final class DashboardScreen extends Screen {
     private record LootRow(String name,String detail,long quantity,double value) {}
     private void loot(GuiGraphicsExtractor g) {
         var value=valuation();
-        Theme.panel(g,14,82,214,236);
+        var fragments = FragmentProfitRow.rows(mod.session().loot(), value, mod.config().hudSections.combinedFragments());
+        int cardHeight = 236 - 22 * (Giant.values().length - fragments.size());
+        Theme.panel(g,14,82,214,cardHeight);
         Theme.text(g,"PROFIT BREAKDOWN",24,94,Theme.BLUE);
         int y=117;
-        for(Giant giant:Giant.values()) {
-            profitRow(g,giant.fragmentName+" ×"+mod.session().loot().itemCount(giant.itemId),value.fragmentValues().get(giant),y,giant.color);
+        for(var fragment : fragments) {
+            profitRow(g,fragment.label(),fragment.coins(),y,fragment.color());
             y+=22;
         }
-        profitRow(g,"All essence",value.essence(),205,Theme.TEXT);
-        profitRow(g,"Kill coins",value.coins(),227,Theme.TEXT);
-        profitRow(g,"Other items",value.otherItems(),249,Theme.TEXT);
-        g.fill(24,271,216,272,Theme.LINE);
-        profitRow(g,"Est. profit",value.total(),282,Theme.GOLD);
-        Theme.text(g,"After sell tax",24,301,Theme.MUTED);
-        if(mouseX>=14&&mouseX<=228&&mouseY>=82&&mouseY<=318) {
+        profitRow(g,"All essence",value.essence(),y,Theme.TEXT);
+        profitRow(g,"Kill coins",value.coins(),y+22,Theme.TEXT);
+        profitRow(g,"Other items",value.otherItems(),y+44,Theme.TEXT);
+        g.fill(24,y+66,216,y+67,Theme.LINE);
+        profitRow(g,"Est. profit",value.total(),y+77,Theme.GOLD);
+        Theme.text(g,"After sell tax",24,y+96,Theme.MUTED);
+        if(mouseX>=14&&mouseX<=228&&mouseY>=82&&mouseY<=82+cardHeight) {
             tooltip="Other items includes Hunting Box shards, Spirit Leaps and other dungeon drops. Fragment subtotals use the collected quantity and current sell price after tax.";
-            for (var giant : Giant.values()) {
-                int rowY = 117 + giant.ordinal()*22;
+            for (int i=0; i<fragments.size(); i++) {
+                int rowY = 117 + i*22;
                 if (mouseY >= rowY-4 && mouseY < rowY+16) {
+                    Giant giant = fragments.get(i).giant();
+                    if (giant == null) {
+                        tooltip = "Collected value of all four giant fragments after sell tax.";
+                        break;
+                    }
                     Double quote = mod.market().prices().values().get(giant.itemId);
                     if (quote != null) tooltip = giant.fragmentName+" sells for "+String.format(Locale.ROOT,"%,.1f",quote)+" Bazaar coins each before tax.";
                 }
@@ -187,11 +196,12 @@ public final class DashboardScreen extends Screen {
         button(g,506,295,24,20,">",Theme.BLUE,()->page=Math.min(pages-1,page+1),"Next page",false);
     }
     private void settings(GuiGraphicsExtractor g) {
+        if (editingSections) { hudSections(g); return; }
         Theme.panel(g,14,82,254,114);Theme.panel(g,278,82,258,114);
         Theme.text(g,"LAYOUT & APPEARANCE",25,94,Theme.BLUE);
-        Theme.fit(g,"Drag to position. Scroll to change scale.",25,112,232,Theme.MUTED,0.85f);
-        button(g,25,133,232,22,"Edit dashboard layout",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,false,this)),"Move and resize this menu independently from the HUD.",false);
-        button(g,25,163,232,22,"Edit in-game HUD layout",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,true,this)),"Move and resize the overlay you see while playing.",false);
+        button(g,25,114,232,22,"HUD sections…",Theme.BLUE,()->{editingSections=true;focus=-1;},"Choose visible sections and group giant fragment profit.",false);
+        button(g,25,142,232,22,"Edit in-game HUD layout",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,true,this)),"Move and resize the overlay you see while playing.",false);
+        button(g,25,170,232,20,"Edit dashboard layout",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,false,this)),"Move and resize this menu independently from the HUD.",false);
         Theme.text(g,"DISPLAY",289,94,Theme.BLUE);
         button(g,289,114,236,22,"HUD  "+(mod.config().showHud?"ON":"OFF"),mod.config().showHud?Theme.GREEN:Theme.MUTED,()->{mod.config().showHud=!mod.config().showHud;mod.saveConfig();},"Show the compact overlay while the session runs.",false);
         button(g,289,144,236,22,"Show saved HUD  "+(mod.config().showStoppedHud?"ON":"OFF"),Theme.BLUE,()->{mod.config().showStoppedHud=!mod.config().showStoppedHud;mod.saveConfig();},"Keep the last session visible after stopping.",false);
@@ -204,6 +214,43 @@ public final class DashboardScreen extends Screen {
         button(g,25,265,500,22,"Giant fragment profit/h: "+(mod.config().expectedFragmentProfit?"Expected drops":"Collected drops"),Theme.BLUE,()->{mod.config().expectedFragmentProfit=!mod.config().expectedFragmentProfit;mod.saveConfig();},hourlyProfitTip(),false);
         Theme.fit(g,"Session: "+mod.sessionKeyName()+" • Settings: "+mod.dashboardKeyName()+" • Rebind in Options > Controls > Key Binds",25,291,500,Theme.MUTED,0.85f);
         Theme.fit(g,mod.store().warning().isEmpty()?"One press pauses or resumes. Two presses within 1.5 seconds end the session.":mod.store().warning(),25,301,500,mod.store().warning().isEmpty()?Theme.MUTED:Theme.RED,0.85f);
+    }
+    private void hudSections(GuiGraphicsExtractor g) {
+        var settings = mod.config().hudSections;
+        button(g,14,82,90,20,"‹ Settings",Theme.BLUE,()->{editingSections=false;focus=-1;},"Return to general settings.",false);
+        Theme.text(g,"HUD SECTIONS",116,88,Theme.TEXT);
+        Theme.right(g,settings.content().blocks().size()+" / "+Section.values().length+" shown",524,88,Theme.MUTED);
+        Theme.panel(g,14,110,254,208);
+        Theme.panel(g,278,110,258,208);
+        Theme.text(g,"SESSION & RUNS",25,122,Theme.BLUE);
+        Theme.text(g,"PROFIT",289,122,Theme.BLUE);
+        sectionSwitch(g,25,141,Section.HEADER);
+        sectionSwitch(g,25,169,Section.SESSION_TIMER);
+        sectionSwitch(g,25,197,Section.RUN_TIMER);
+        sectionSwitch(g,25,225,Section.RUN_RECORDS);
+        sectionSwitch(g,25,253,Section.RUN_COUNTS);
+        sectionSwitch(g,25,281,Section.WATCHER_GIANTS);
+        sectionSwitch(g,289,141,Section.PROFIT_BREAKDOWN);
+        sectionSwitch(g,289,169,Section.TOTAL_PROFIT);
+        sectionSwitch(g,289,197,Section.HOURLY_PROFIT);
+        g.fill(289,229,521,230,Theme.LINE);
+        Theme.text(g,"GIANT FRAGMENT PROFIT",289,241,Theme.BLUE);
+        button(g,289,258,232,22,settings.combinedFragments()?"One combined total":"Separate by giant",Theme.BLUE,()->{
+            settings.toggleFragmentGrouping();
+            mod.saveConfig();
+        },"Switch between four collected fragment subtotals and their sum.",false);
+        Theme.fit(g,"Applies to HUD and Loot & profit.",289,292,232,Theme.MUTED,0.9f);
+    }
+    private void sectionSwitch(GuiGraphicsExtractor g, int x, int y, Section section) {
+        var settings = mod.config().hudSections;
+        boolean shown = settings.visible(section);
+        control(g,x,y,232,22,section.label,Theme.BLUE,()->{
+            settings.toggle(section);
+            mod.saveConfig();
+        },section.description,false);
+        Theme.text(g,section.label,x+9,y+7,shown?Theme.TEXT:Theme.MUTED);
+        Theme.round(g,x+190,y+4,36,14,shown?0xFF29473E:0xFF363947);
+        Theme.centered(g,shown?"ON":"OFF",x+208,y+7,shown?Theme.GREEN:Theme.MUTED);
     }
     private void confirmClearHistory() {
         boolean active = mod.session().active();
@@ -239,11 +286,14 @@ public final class DashboardScreen extends Screen {
                 : "Collected: all collected loot value / full session hours, as in version 1.0.0. Click in Settings to estimate only giant fragments from fixed drop chances.";
     }
     private void button(GuiGraphicsExtractor g,int x,int y,int w,int h,String label,int color,Runnable action,String tip,boolean selected) {
+        control(g,x,y,w,h,label,color,action,tip,selected);
+        Theme.centered(g,label,x+w/2,y+(h-8)/2,color);
+    }
+    private void control(GuiGraphicsExtractor g,int x,int y,int w,int h,String label,int color,Runnable action,String tip,boolean selected) {
         int index=controls.size();Control c=new Control(x,y,w,h,label,action);controls.add(c);
         boolean hover=c.hit(mouseX,mouseY),focused=focus==index;
         Theme.round(g,x,y,w,h,selected?0xFF354853:hover||focused?0xFF384153:0xFF282E3E);
         if(selected||focused) g.fill(x+4,y+h-2,x+w-4,y+h-1,color);
-        Theme.centered(g,label,x+w/2,y+(h-8)/2,color);
         if(hover&&!tip.isEmpty()) tooltip=tip;
     }
     @Override public boolean mouseClicked(MouseButtonEvent e,boolean doubleClick) {
@@ -259,6 +309,7 @@ public final class DashboardScreen extends Screen {
     @Override public boolean keyPressed(KeyEvent e) {
         if(mod.handleScreenKey(e)) return true;
         if(e.key()==GLFW.GLFW_KEY_ESCAPE && mod.session().confirmingStop()) { mod.session().cancelConfirmation();return true; }
+        if(e.key()==GLFW.GLFW_KEY_ESCAPE && editingSections) { editingSections=false;focus=-1;return true; }
         if(e.key()==GLFW.GLFW_KEY_TAB) { focus=Math.floorMod(focus+((e.modifiers()&GLFW.GLFW_MOD_SHIFT)!=0?-1:1),Math.max(1,controls.size())); return true; }
         if((e.key()==GLFW.GLFW_KEY_ENTER||e.key()==GLFW.GLFW_KEY_SPACE)&&focus>=0&&focus<controls.size()) { controls.get(focus).action.run();return true; }
         return super.keyPressed(e);

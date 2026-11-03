@@ -71,6 +71,23 @@ class DataTest {
     @Test void newInstallDefaultsToExpectedFragmentIncome() {
         assertTrue(new SessionStore(directory).loadConfig().expectedFragmentProfit);
     }
+    @Test void hudChoicesMigrateFrom13AndPersistWithoutMovingTheHud() throws Exception {
+        Files.writeString(directory.resolve("settings.json"),"{\"hud\":{\"x\":0.15,\"y\":0.64,\"scale\":0.55},\"expectedFragmentProfit\":false}");
+        var store = new SessionStore(directory);
+        var config = store.loadConfig();
+        assertEquals(9,config.hudSections.content().blocks().size());
+        assertFalse(config.hudSections.combinedFragments());
+        config.hudSections.toggle(dev.fragruns.core.HudSettings.Section.PROFIT_BREAKDOWN);
+        config.hudSections.toggle(dev.fragruns.core.HudSettings.Section.HEADER);
+        config.hudSections.toggleFragmentGrouping();
+        store.saveConfig(config);
+        var restored = store.loadConfig();
+        assertEquals(config.hudSections.content(),restored.hudSections.content());
+        assertTrue(restored.hudSections.combinedFragments());
+        assertTrue(restored.hudSections.visible(dev.fragruns.core.HudSettings.Section.HOURLY_PROFIT));
+        assertFalse(restored.expectedFragmentProfit);
+        assertEquals(0.15,restored.hud.x); assertEquals(0.64,restored.hud.y); assertEquals(0.55,restored.hud.scale);
+    }
     @Test void pausedSessionRemainsResumableAcrossStoreReloadAndHistoryClear() throws Exception {
         var store = new SessionStore(directory);
         var clock = new AtomicLong(0);

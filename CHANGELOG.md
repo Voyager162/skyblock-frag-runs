@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 — Customizable HUD
+
+- Open **F9 → Settings → HUD sections** to choose among nine independent sections. The breakdown, total profit and hourly estimate can each be displayed on their own.
+- Choose **One combined total** to sum the collected quantity and net value of all giant fragments in the HUD and the Loot & profit breakdown.
+- The HUD, editor outline, drag area and resize handle fit the visible content. Hiding every section hides the gameplay overlay. Existing profiles start with all sections visible and separate fragment rows.
+
 ## 1.3.0 — Pause, verified fragment counts, and Hunting Box shards
 
 - Press the session key once to start, pause or resume. Two presses within 1.5 seconds end a running or paused session. Paused sessions can resume after a restart.

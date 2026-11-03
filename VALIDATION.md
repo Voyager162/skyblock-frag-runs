@@ -1,10 +1,10 @@
-# Validation — version 1.3.0
+# Validation — version 1.4.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**111 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**116 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
@@ -16,14 +16,24 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 | Dungeon presence | 5 | Pre-warp multiline banner, real transfer, rebuilt or stale hub sidebar, confirmation after arrival, requeue inside F7, Master Mode, expired or cancelled entry, and disconnect |
 | Essence | 5 | Hub-balance parsing and reconciliation, chat reward subtraction, salvage receipt subtraction, partial balances, invalidation |
 | Layout | 9 | Seven viewport sizes from 320×240 through 3440×1440, multiple scales and anchors, invalid settings, clamping, coordinate round trips |
+| HUD sections | 3 | All 512 visibility selections in each fragment mode, smaller bounds at constrained resolutions, compact resizing, and a fully hidden HUD |
+| Fragment display | 1 | The combined subtotal matches the separate rows across price updates, taxed sales, NPC fallback, and an unpriced fragment |
 | Signals | 15 | Formatted scoreboard/chat parsing, exact F7 recognition, other-floor/Master Mode rejection, purse precision, essence messages, transaction exclusions |
-| Data | 17 | Bazaar orders, catalog and salvage, settings migration, save recovery, clearing history during running and paused sessions, pause persistence, restart after clearing, and retry after a filesystem error |
+| Data | 18 | Bazaar orders, catalog and salvage, settings and HUD migration, display preferences surviving reload, save recovery, history clearing, and pause persistence |
 
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
 
-### Version 1.3.0
+### Version 1.4.0
+
+The installable JAR ran with 68 SkyBlock Enhanced mod JARs in a separate Minecraft 26.2 instance. A private fixture supplied a sample session, opened Settings, clicked each HUD control, and captured native game screenshots.
+
+- Confirmed all nine sections initially visible. The combined mode replaced four profit rows with one in both the HUD and the dashboard. The itemized loot list still showed the individual drops.
+- Confirmed the two-row profit summary, total alone, hourly alone, breakdown alone, and the all-hidden editor state. The smaller editor accepted drags inside its updated bounds and resized from its new bottom corner.
+- Reloaded the saved options from disk and verified the selection, grouping, position and scale. The session snapshot matched its original runs, clock and loot after all display changes.
+
+### Previous version 1.3.0 checks
 
 A live 1.2.0 session recorded two Diamante encounters and credited two Handles. The player confirmed one actual drop. The recorded instant-sell quote was 366,667 coins, matching the observed sale of a single Handle. With 1.25% tax the correct value for one was 362,083.66 coins. Two incorrectly credited units explained the displayed 724.2k.
 
@@ -72,7 +82,7 @@ The test instance used an offline preview identity. Other pack mods and Minecraf
 
 ## Limits and live-play checklist
 
-**A live Hypixel F7 playtest of 1.3.0 is pending.** The 1.2.0 player report established the prior counting error. Local replay covers the packet and display formats exercised.
+**A live Hypixel F7 playtest of 1.4.0 is pending.** The HUD checks used a local Minecraft world and a sample session. The previous tracking replay covered the packet and display formats exercised.
 
 For that playtest:
 
@@ -87,8 +97,8 @@ Profit is an estimate: purse deltas can include unrecognized transfers, server-o
 
 ## Release artifact
 
-`build/libs/skyblock-frag-runs-1.3.0.jar` — 185,925 bytes.
+`build/libs/skyblock-frag-runs-1.4.0.jar` — 199,542 bytes.
 
-SHA-256: `cf9c623c40b1cb9519f7a12f1339ca53637e7173370a194e8216256d9f103491`
+SHA-256: `55914617daf1cd791868fdeadb9563e8c974d6876b0b40854748e69bbe0d99ab`
 
 Install this jar, not the `-sources.jar`. Source code and build files are included in the project workspace.
