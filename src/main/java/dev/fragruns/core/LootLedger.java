@@ -77,6 +77,21 @@ public final class LootLedger {
     private static Double validPrice(Double price) { return price != null && Double.isFinite(price) && price > 0 ? price : null; }
     public void clear() { entries.clear(); essence.clear(); coins = 0; }
     public Snapshot snapshot() { return new Snapshot(new LinkedHashMap<>(entries), new LinkedHashMap<>(essence), coins); }
+    /** Quantities harvested since entering one dungeon. Purse changes can also be negative. */
+    public Snapshot since(LootLedger before) {
+        Map<String,Entry> gained = new LinkedHashMap<>();
+        for (var lot : entries.entrySet()) {
+            Entry e = lot.getValue(), old = before.entries.get(lot.getKey());
+            long quantity = e.quantity - (old == null ? 0 : old.quantity);
+            if (quantity > 0) gained.put(lot.getKey(), new Entry(e.itemId,e.name,quantity,e.essenceId,e.essencePerItem,e.npcPrice));
+        }
+        Map<String,Long> found = new LinkedHashMap<>();
+        essence.forEach((id,amount) -> {
+            long gain = amount - before.essence.getOrDefault(id,0L);
+            if (gain > 0) found.put(id,gain);
+        });
+        return new Snapshot(gained,found,coins-before.coins);
+    }
     public void restore(Snapshot s) {
         if (s == null || s.entries == null || s.essence == null || !Double.isFinite(s.coins))
             throw new IllegalArgumentException("Invalid loot save");

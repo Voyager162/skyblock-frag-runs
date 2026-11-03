@@ -9,6 +9,7 @@ public final class HuntingBox {
     private static final long SETTLE_MS = 1_500;
     private final Map<HuntingShards.Shard,Balance> balances = new HashMap<>();
     private static final class Balance {
+        ObjIntConsumer<HuntingShards.Shard> owner;
         long expected;
         int visible, recentlyCredited;
         long settleAt = Long.MAX_VALUE, creditedAt = Long.MIN_VALUE;
@@ -16,12 +17,16 @@ public final class HuntingBox {
     }
     public void reset() { balances.clear(); }
     public void observe(HuntingShards.Shard shard, int owned, boolean eligible, long now) {
+        observe(shard,owned,eligible,now,null);
+    }
+    public void observe(HuntingShards.Shard shard, int owned, boolean eligible, long now, ObjIntConsumer<HuntingShards.Shard> owner) {
         if (owned < 0) return;
         Balance b = balances.get(shard);
         if (b == null || !eligible) {
             balances.put(shard, new Balance(owned));
         } else if (b.visible != owned) {
             b.visible = owned;
+            b.owner = owner;
             b.settleAt = now + SETTLE_MS;
         }
     }
@@ -50,7 +55,7 @@ public final class HuntingBox {
                 b.expected = b.visible;
                 b.recentlyCredited = gain;
                 b.creditedAt = now;
-                credit.accept(entry.getKey(), gain);
+                (b.owner == null ? credit : b.owner).accept(entry.getKey(),gain);
             }
         }
     }

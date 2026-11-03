@@ -5,6 +5,7 @@ import dev.fragruns.core.Giant;
 import dev.fragruns.core.HudSettings.Section;
 import dev.fragruns.core.Layout;
 import dev.fragruns.core.LootLedger;
+import dev.fragruns.core.Session;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.ConfirmScreen;
@@ -21,7 +22,9 @@ public final class DashboardScreen extends Screen {
     public static final int WIDTH=550,HEIGHT=380;
     private final FragRunsClient mod;
     private final Screen parent;
-    private int tab,page,focus=-1;
+    private int tab,focus=-1;
+    int page;
+    private final SessionLog log;
     private final List<Control> controls=new ArrayList<>();
     private double mouseX,mouseY;
     private String tooltip;
@@ -31,7 +34,7 @@ public final class DashboardScreen extends Screen {
         boolean hit(double px,double py) { return px>=x && py>=y && px<x+w && py<y+h; }
     }
     public DashboardScreen(FragRunsClient mod,boolean settings) { this(mod,settings,null); }
-    public DashboardScreen(FragRunsClient mod,boolean settings,Screen parent) { super(Component.literal("Skyblock Frag Runs")); this.mod=mod; this.tab=settings?3:0; this.parent=parent; }
+    public DashboardScreen(FragRunsClient mod,boolean settings,Screen parent) { super(Component.literal("Skyblock Frag Runs")); this.mod=mod; this.tab=settings?3:0; this.parent=parent; log=new SessionLog(this,mod); }
     public Layout.Bounds bounds() { return mod.config().dashboard.fit(width,height,WIDTH,HEIGHT); }
     @Override public boolean isPauseScreen() { return false; }
     @Override public void extractBackground(GuiGraphicsExtractor graphics,int mx,int my,float delta) { /* Keep the game visible without forcing blur. */ }
@@ -50,23 +53,30 @@ public final class DashboardScreen extends Screen {
         Theme.round(g,2,3,WIDTH,HEIGHT,0x60000000);
         Theme.round(g,0,0,WIDTH,HEIGHT,Theme.PANEL);
         Theme.fit(g,"Skyblock Frag Runs",14,13,310,Theme.BLUE,1.5f);
-        Theme.text(g,"FLOOR VII  /  SESSION TRACKER",15,34,Theme.MUTED);
+        Theme.fit(g,tab==2?log.breadcrumb():"FLOOR VII  /  SESSION TRACKER",15,34,345,Theme.MUTED,1);
         String badge=Boolean.getBoolean("fragruns.preview") ? "PREVIEW DATA" : s.paused() ? "SESSION PAUSED" : s.running() ? "SESSION LIVE" : s.elapsedMs()>0 ? "SESSION SAVED" : "READY TO RUN";
-        Theme.right(g,badge,WIDTH-15,16,s.paused()?Theme.GOLD:s.running()?Theme.GREEN:Theme.MUTED);
+        boolean savedView=tab==2 && log.viewingArchive();
+        Theme.right(g,savedView?"SESSION ARCHIVE":badge,WIDTH-15,16,savedView?Theme.BLUE:s.paused()?Theme.GOLD:s.running()?Theme.GREEN:Theme.MUTED);
         Theme.right(g,"v"+mod.version()+"  •  Fabric 26.2",WIDTH-15,32,Theme.MUTED);
-        String[] tabs={"Overview","Loot & profit","Run history","Settings"};
-        for(int i=0;i<tabs.length;i++) {
-            final int target=i;
-            button(g,14+i*132,51,126,20,tabs[i],tab==i?Theme.BLUE:Theme.MUTED,()->{tab=target;page=0;focus=-1;editingSections=false;},"",tab==i);
+        if(tab==2 && log.inSession()) log.navigation(g);
+        else {
+            String[] tabs={"Overview","Loot & profit","Session log","Settings"};
+            for(int i=0;i<tabs.length;i++) {
+                final int target=i;
+                button(g,14+i*132,51,126,20,tabs[i],tab==i?Theme.BLUE:Theme.MUTED,()->{tab=target;resetPage();editingSections=false;if(tab==2) log.open();},"",tab==i);
+            }
         }
-        switch(tab) { case 0->overview(g); case 1->loot(g); case 2->history(g); default->settings(g); }
+        switch(tab) { case 0->overview(g,s); case 1->loot(g,s.loot()); case 2->log.draw(g,historyNotice); default->settings(g); }
         g.fill(14,326,WIDTH-14,327,Theme.LINE);
-        Theme.fit(g,"Session: "+mod.sessionKeyName()+" • Settings: "+mod.dashboardKeyName(),15,334,355,Theme.MUTED,1);
+        Theme.fit(g,tab==2 && log.inSession()?log.footer():"Session: "+mod.sessionKeyName()+" • Settings: "+mod.dashboardKeyName(),15,334,411,Theme.MUTED,1);
         Theme.right(g,String.format(Locale.ROOT,"%.2f%% tax",mod.config().bazaarTaxPercent),WIDTH-15,334,Theme.MUTED);
         String action=!s.active()?"Start session":s.confirmingStop()?"Press again to end":s.paused()?"Resume session":"Pause session";
-        button(g,14,352,142,20,action,s.confirmingStop()?Theme.RED:s.running()?Theme.GOLD:Theme.GREEN,mod::sessionKeyPressed,
-                "One press starts, pauses or resumes. Two presses within 1.5 seconds end an active session.",false);
-        button(g,164,352,130,20,"Edit HUD",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,true,this)),"Drag and resize the in-game overlay.",false);
+        if(tab==2 && log.inSession()) log.continueButton(g);
+        else {
+            button(g,14,352,142,20,action,s.confirmingStop()?Theme.RED:s.running()?Theme.GOLD:Theme.GREEN,mod::sessionKeyPressed,
+                    "One press starts, pauses or resumes. Two presses within 1.5 seconds end an active session.",false);
+            button(g,164,352,130,20,"Edit HUD",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,true,this)),"Drag and resize the in-game overlay you see during play.",false);
+        }
         button(g,420,352,116,20,"Close",Theme.MUTED,this::onClose,"Esc closes this menu; the session keeps running.",false);
         if(s.confirmingStop()) {
             Theme.round(g,156,297,380,23,0xFF49303C);
@@ -74,12 +84,13 @@ public final class DashboardScreen extends Screen {
         }
         if(!interactive) controls.clear();
     }
-    private void overview(GuiGraphicsExtractor g) {
-        var s=mod.session(); var value=valuation();
+    void overview(GuiGraphicsExtractor g,Session s) {
+        var value=valuation(s.loot());
         metric(g,14,"SESSION",Theme.time(s.elapsedMs()),Theme.TEXT,s.paused()?"Paused":s.running()?"Running":"Session saved");
-        metric(g,146,"CURRENT RUN",Theme.time(s.runMs()),Theme.GOLD,s.paused()?"Paused":s.inDungeon()?"Enter to exit":"Waiting for F7");
+        if (tab==2 && !s.active()) metric(g,146,"FINISHED RUNS",Integer.toString(s.completedRuns()),Theme.BLUE,"Of "+s.totalRuns()+" recorded");
+        else metric(g,146,"CURRENT RUN",Theme.time(s.runMs()),Theme.GOLD,s.paused()?"Paused":s.inDungeon()?"Enter to exit":"Waiting for F7");
         metric(g,278,"EST. PROFIT",Theme.coins(value.total()),Theme.GOLD,"After sell tax");
-        metric(g,410,"COINS / HOUR",Theme.coins(mod.hourlyProfit(value)),Theme.GREEN,mod.config().expectedFragmentProfit?"Expected fragments":"Collected drops");
+        metric(g,410,"COINS / HOUR",Theme.coins(mod.hourlyProfit(s,value)),Theme.GREEN,mod.config().expectedFragmentProfit?"Expected fragments":"Collected drops");
         if(mouseX>=410&&mouseX<=536&&mouseY>=82&&mouseY<=139) tooltip=hourlyProfitTip();
         Theme.panel(g,14,149,190,169);
         Theme.text(g,"RUN TIMES",25,161,Theme.BLUE);
@@ -94,8 +105,9 @@ public final class DashboardScreen extends Screen {
         Theme.text(g,"WATCHER GIANTS",226,161,Theme.BLUE);
         Theme.right(g,"SEEN  /  SHARE",524,161,Theme.MUTED);
         int y=181;
+        var giantStats=s.giantStats();
         for(Giant giant:Giant.values()) {
-            var stat=s.giantStats().get(giant);
+            var stat=giantStats.get(giant);
             Theme.text(g,giant.label,226,y,giant.color);
             Theme.right(g,stat.encounters()+"  ("+Theme.percent(stat.frequency())+")",524,y,Theme.TEXT);
             Theme.fit(g,giant.fragmentName,234,y+13,190,Theme.MUTED,1);
@@ -111,11 +123,11 @@ public final class DashboardScreen extends Screen {
         Theme.fit(g,caption,x+9,126,108,Theme.MUTED,1);
     }
     private void stat(GuiGraphicsExtractor g,String label,String value,int y,int color) { Theme.text(g,label,25,y,Theme.MUTED); Theme.right(g,value,193,y,color); }
-    private LootLedger.Valuation valuation() { return mod.session().loot().value(mod.market().prices().values(),mod.config().bazaarTaxPercent,mod.config().includeSalvage); }
+    LootLedger.Valuation valuation(LootLedger loot) { return loot.value(mod.market().prices().values(),mod.config().bazaarTaxPercent,mod.config().includeSalvage); }
     private record LootRow(String name,String detail,long quantity,double value) {}
-    private void loot(GuiGraphicsExtractor g) {
-        var value=valuation();
-        var fragments = FragmentProfitRow.rows(mod.session().loot(), value, mod.config().hudSections.combinedFragments());
+    void loot(GuiGraphicsExtractor g,LootLedger ledger) {
+        var value=valuation(ledger);
+        var fragments = FragmentProfitRow.rows(ledger, value, mod.config().hudSections.combinedFragments());
         int cardHeight = 236 - 22 * (Giant.values().length - fragments.size());
         Theme.panel(g,14,82,214,cardHeight);
         Theme.text(g,"PROFIT BREAKDOWN",24,94,Theme.BLUE);
@@ -149,12 +161,12 @@ public final class DashboardScreen extends Screen {
         Theme.text(g,"COLLECTED LOOT",248,94,Theme.BLUE);
         Theme.right(g,"QTY       VALUE",524,110,Theme.MUTED);
         List<LootRow> rows=new ArrayList<>();
-        for(var lot:mod.session().loot().entries().entrySet()) {
+        for(var lot:ledger.entries().entrySet()) {
             var e=lot.getValue();
             String detail=mod.config().includeSalvage&&e.essencePerItem()>0 ? e.essencePerItem()+" "+e.essenceId().replace("ESSENCE_","").toLowerCase(Locale.ROOT)+" essence each" : Giant.fromItem(e.itemId())!=null ? "Giant fragment" : "Other items";
             rows.add(new LootRow(e.name(),detail,e.quantity(),value.lineValues().getOrDefault(lot.getKey(),0.0)));
         }
-        for(var e:mod.session().loot().essence().entrySet()) rows.add(new LootRow(e.getKey().replace("ESSENCE_","")+" essence","Found in dungeon",e.getValue(),value.lineValues().getOrDefault(e.getKey(),0.0)));
+        for(var e:ledger.essence().entrySet()) rows.add(new LootRow(e.getKey().replace("ESSENCE_","")+" essence","Found in dungeon",e.getValue(),value.lineValues().getOrDefault(e.getKey(),0.0)));
         rows.sort(Comparator.comparingDouble(LootRow::value).reversed().thenComparing(LootRow::name));
         int pages=Math.max(1,(rows.size()+4)/5);page=Math.clamp(page,0,pages-1);
         for(int i=page*5;i<Math.min(rows.size(),page*5+5);i++) {
@@ -165,7 +177,7 @@ public final class DashboardScreen extends Screen {
             Theme.right(g,Long.toString(row.quantity),451,rowY+4,Theme.TEXT);
             Theme.right(g,row.value>0?Theme.coins(row.value):"Unpriced",524,rowY+4,row.value>0?Theme.GOLD:Theme.MUTED);
         }
-        if(rows.isEmpty()) { Theme.centered(g,"Your drops will appear here.",387,187,Theme.MUTED);Theme.centered(g,"Ready for your first run.",387,207,Theme.MUTED); }
+        if(rows.isEmpty()) Theme.centered(g,"No item drops recorded.",387,194,Theme.MUTED);
         Theme.fit(g,value.unpriced()>0?value.unpriced()+" unpriced lots":"All collected loot",248,302,150,Theme.MUTED,1);
         pager(g,pages);
     }
@@ -173,24 +185,7 @@ public final class DashboardScreen extends Screen {
         Theme.fit(g,label,24,y,133,Theme.MUTED,1);
         Theme.right(g,Theme.coins(value),216,y,color);
     }
-    private void history(GuiGraphicsExtractor g) {
-        var runs=mod.session().runs();
-        Theme.panel(g,14,82,522,236);
-        Theme.text(g,"#",25,95,Theme.MUTED);Theme.text(g,"RUN TIME",60,95,Theme.MUTED);Theme.text(g,"GIANT",163,95,Theme.MUTED);Theme.text(g,"FRAGMENTS",321,95,Theme.MUTED);Theme.text(g,"RESULT",430,95,Theme.MUTED);
-        int pages=Math.max(1,(runs.size()+7)/8);page=Math.clamp(page,0,pages-1);
-        for(int row=0;row<8;row++) {
-            int index=runs.size()-1-page*8-row;if(index<0) break;
-            var run=runs.get(index);int y=117+row*21;
-            if(row%2==0) g.fill(21,y-4,529,y+14,0x552F3546);
-            Theme.text(g,Integer.toString(index+1),25,y,Theme.MUTED);Theme.text(g,Theme.time(run.milliseconds()),60,y,Theme.TEXT);
-            Theme.fit(g,run.giant()==null?"Not observed":run.giant().label,163,y,150,run.giant()==null?Theme.MUTED:run.giant().color,1);
-            Theme.text(g,Integer.toString(run.fragments()),340,y,Theme.TEXT);Theme.fit(g,run.completed()?"Finished":"Early / partial",430,y,98,run.completed()?Theme.GREEN:Theme.MUTED,0.9f);
-        }
-        if(runs.isEmpty()) { Theme.centered(g,"A fresh session. Your first run starts in Floor VII.",WIDTH/2,183,Theme.MUTED);Theme.centered(g,"Run timing stops when you leave the dungeon.",WIDTH/2,204,Theme.MUTED); }
-        button(g,25,294,147,21,"Clear session history…",Theme.RED,this::confirmClearHistory,"Manage saved sessions for this profile.",false);
-        Theme.fit(g,historyNotice.isEmpty()?"Newest first":historyNotice,179,301,217,Theme.MUTED,0.85f);pager(g,pages);
-    }
-    private void pager(GuiGraphicsExtractor g,int pages) {
+    void pager(GuiGraphicsExtractor g,int pages) {
         button(g,406,295,24,20,"<",Theme.BLUE,()->page=Math.max(0,page-1),"Previous page",false);
         Theme.centered(g,(page+1)+" / "+pages,468,302,Theme.MUTED);
         button(g,506,295,24,20,">",Theme.BLUE,()->page=Math.min(pages-1,page+1),"Next page",false);
@@ -252,7 +247,7 @@ public final class DashboardScreen extends Screen {
         Theme.round(g,x+190,y+4,36,14,shown?0xFF29473E:0xFF363947);
         Theme.centered(g,shown?"ON":"OFF",x+208,y+7,shown?Theme.GREEN:Theme.MUTED);
     }
-    private void confirmClearHistory() {
+    void confirmClearHistory() {
         boolean active = mod.session().active();
         String sessionId = mod.session().id();
         String explanation = active
@@ -272,6 +267,7 @@ public final class DashboardScreen extends Screen {
                 }
                 page = 0;
                 tab = 2;
+                log.open();
             }
             focus = -1;
             minecraft.gui.setScreen(this);
@@ -285,11 +281,12 @@ public final class DashboardScreen extends Screen {
                 ? "Giant fragment coins/h uses the expected drop value per finished encounter, your average run time and the share of runs you finish. Other loot uses collected value per session hour."
                 : "Collected: all collected loot value / full session hours, as in version 1.0.0. Click in Settings to estimate only giant fragments from fixed drop chances.";
     }
-    private void button(GuiGraphicsExtractor g,int x,int y,int w,int h,String label,int color,Runnable action,String tip,boolean selected) {
+    void resetPage() { page=0; focus=-1; }
+    void button(GuiGraphicsExtractor g,int x,int y,int w,int h,String label,int color,Runnable action,String tip,boolean selected) {
         control(g,x,y,w,h,label,color,action,tip,selected);
         Theme.centered(g,label,x+w/2,y+(h-8)/2,color);
     }
-    private void control(GuiGraphicsExtractor g,int x,int y,int w,int h,String label,int color,Runnable action,String tip,boolean selected) {
+    void control(GuiGraphicsExtractor g,int x,int y,int w,int h,String label,int color,Runnable action,String tip,boolean selected) {
         int index=controls.size();Control c=new Control(x,y,w,h,label,action);controls.add(c);
         boolean hover=c.hit(mouseX,mouseY),focused=focus==index;
         Theme.round(g,x,y,w,h,selected?0xFF354853:hover||focused?0xFF384153:0xFF282E3E);
@@ -310,10 +307,12 @@ public final class DashboardScreen extends Screen {
         if(mod.handleScreenKey(e)) return true;
         if(e.key()==GLFW.GLFW_KEY_ESCAPE && mod.session().confirmingStop()) { mod.session().cancelConfirmation();return true; }
         if(e.key()==GLFW.GLFW_KEY_ESCAPE && editingSections) { editingSections=false;focus=-1;return true; }
+        if(e.key()==GLFW.GLFW_KEY_ESCAPE && tab==2 && log.inSession()) { log.back();return true; }
         if(e.key()==GLFW.GLFW_KEY_TAB) { focus=Math.floorMod(focus+((e.modifiers()&GLFW.GLFW_MOD_SHIFT)!=0?-1:1),Math.max(1,controls.size())); return true; }
         if((e.key()==GLFW.GLFW_KEY_ENTER||e.key()==GLFW.GLFW_KEY_SPACE)&&focus>=0&&focus<controls.size()) { controls.get(focus).action.run();return true; }
         return super.keyPressed(e);
     }
     @Override public boolean keyReleased(KeyEvent e) { mod.screenKeyReleased(e);return super.keyReleased(e); }
     @Override public void onClose() { mod.saveConfig(); minecraft.gui.setScreen(parent); }
+    @Override public void removed() { log.releaseMap(); super.removed(); }
 }

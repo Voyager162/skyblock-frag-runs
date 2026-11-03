@@ -62,6 +62,7 @@ public final class GameTracker {
 
     public GameTracker(Session session, ItemCatalog catalog) { this.session=session; this.catalog=catalog; }
     public String location() { return location; }
+    public boolean inBossPhase() { return bossPhase; }
     public boolean precisePurse() { return precisePurse; }
     public boolean essenceBaseline() { return essenceBalances.hasBaseline(); }
     private static long now() { return System.nanoTime()/1_000_000; }
@@ -136,14 +137,17 @@ public final class GameTracker {
         presence.observe(area, now);
         boolean f7 = presence.inF7();
         location = f7 ? "The Catacombs • Floor VII" : "Outside Floor VII";
-        if (!f7 && now-leftAt>2_000 && (tab.stream().anyMatch(GameTracker::inHub) || lines.stream().anyMatch(GameTracker::inHub))) {
-            essenceBalances.observeHub(EssenceBalances.parse(tab),(id,count)->{if(session.running()) session.loot().addEssence(id,count);});
+        if (!f7 && !session.inDungeon() && now-leftAt>2_000 && (tab.stream().anyMatch(GameTracker::inHub) || lines.stream().anyMatch(GameTracker::inHub))) {
+            var owner = session.rewardOwner();
+            essenceBalances.observeHub(EssenceBalances.parse(tab),(id,count)->session.credit(owner,ledger->ledger.addEssence(id,count)),
+                    (id,count)->{ if (session.running()) session.loot().addEssence(id,count); });
         }
         if (!session.running()) {
             if (session.paused() && session.inDungeon() && !f7) endRun("Left while paused", true);
             return;
         }
         if (f7 && !session.inDungeon()) {
+            huntingBox.settle(now,true,this::creditBoxShard);
             session.enterDungeon();
             essenceBalances.enter();
             purse.enterDungeon(now);
@@ -164,8 +168,10 @@ public final class GameTracker {
         if (balance.isEmpty()) balance=Signals.purse(tab);
         precisePurse=balance.isPresent();
         if (balance.isPresent()) {
-            if (f7) purse.observe(balance.getAsDouble(), now);
-            else if (area == Signals.Area.OUTSIDE) purse.observeOutside(balance.getAsDouble(), now);
+            var owner = session.rewardOwner();
+            java.util.function.DoubleConsumer credit = coins -> session.credit(owner,ledger -> ledger.addCoins(coins));
+            if (f7) purse.observe(balance.getAsDouble(), now,credit);
+            else if (area == Signals.Area.OUTSIDE) purse.observeOutside(balance.getAsDouble(), now,credit);
         }
         purse.flush(now,false,session.loot()::addCoins);
         if(!session.inDungeon()) return;
@@ -186,7 +192,8 @@ public final class GameTracker {
             for (var line : lore.lines()) {
                 int owned = HuntingShards.owned(line.getString());
                 if (owned >= 0) {
-                    huntingBox.observe(shard, owned, eligible, now);
+                    var owner = session.rewardOwner();
+                    huntingBox.observe(shard,owned,eligible,now,(reward,count)->creditShard(owner,reward,count,PickupReconciler.Source.REWARD));
                     break;
                 }
             }
@@ -196,8 +203,11 @@ public final class GameTracker {
         creditShard(shard, count, PickupReconciler.Source.REWARD);
     }
     private void creditShard(HuntingShards.Shard shard, int count, PickupReconciler.Source source) {
+        creditShard(session.rewardOwner(),shard,count,source);
+    }
+    private void creditShard(java.util.UUID owner,HuntingShards.Shard shard,int count,PickupReconciler.Source source) {
         int fresh = shardReceipts.observe(shard.productId(), count, source, now());
-        if (fresh > 0) session.loot().addItem(shard.productId(), shard.name()+" Shard", fresh, null, 0, 0);
+        if (fresh > 0) session.credit(owner,ledger->ledger.addItem(shard.productId(),shard.name()+" Shard",fresh,null,0,0));
     }
 
     private static boolean inHub(String line) { return Signals.clean(line).endsWith("Dungeon Hub"); }

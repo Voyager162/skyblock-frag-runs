@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0 — Session log and dungeon maps
+
+- Browse archived sessions in **F9 → Session log**. Each session has totals, an itemized loot breakdown and a clickable list of runs.
+- Inspect each new run's timing, exit, giant and confirmed fragment result alongside its kill coins, giant-fragment value, essence, salvage and other items.
+- Save a map image from the active StellaNav or Skyblocker HUD. The server's dungeon map supplies room colors when a HUD capture is unavailable.
+- Continue a saved session with its previous elapsed time, runs and loot. Saving it again updates the same log entry.
+- Read older archives with the fields they originally recorded. Clearing history now also removes the associated run maps.
+
 ## 1.4.0 — Customizable HUD
 
 - Open **F9 → Settings → HUD sections** to choose among nine independent sections. The breakdown, total profit and hourly estimate can each be displayed on their own.

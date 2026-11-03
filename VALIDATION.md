@@ -1,10 +1,10 @@
-# Validation — version 1.4.0
+# Validation — version 1.5.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**116 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**126 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
@@ -14,16 +14,26 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 | Hunting Box | 4 | Product aliases, personal reward messages, old balances, manual deposits, message/balance reconciliation, pause boundaries and Bazaar valuation under Other items |
 | Hourly projection | 11 | Average run duration across different speeds, hub downtime, finished share, fixed drop odds, original-mode equivalence, other loot per session hour, zero/live runs, repricing, tax, and restored sessions |
 | Dungeon presence | 5 | Pre-warp multiline banner, real transfer, rebuilt or stale hub sidebar, confirmation after arrival, requeue inside F7, Master Mode, expired or cancelled entry, and disconnect |
-| Essence | 5 | Hub-balance parsing and reconciliation, chat reward subtraction, salvage receipt subtraction, partial balances, invalidation |
+| Essence | 6 | Hub-balance parsing, chat and salvage deductions, partial balances and a single return balance spanning two runs |
 | Layout | 9 | Seven viewport sizes from 320×240 through 3440×1440, multiple scales and anchors, invalid settings, clamping, coordinate round trips |
 | HUD sections | 3 | All 512 visibility selections in each fragment mode, smaller bounds at constrained resolutions, compact resizing, and a fully hidden HUD |
 | Fragment display | 1 | The combined subtotal matches the separate rows across price updates, taxed sales, NPC fallback, and an unpriced fragment |
 | Signals | 15 | Formatted scoreboard/chat parsing, exact F7 recognition, other-floor/Master Mode rejection, purse precision, essence messages, transaction exclusions |
 | Data | 18 | Bazaar orders, catalog and salvage, settings and HUD migration, display preferences surviving reload, save recovery, history clearing, and pause persistence |
+| Session log | 9 | Run-level attribution, delayed rewards, early exits, legacy imports, backup reads, ordering, failed switches, continuation and clearing map files with writes in flight |
 
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.5.0
+
+A private replay ran the packaged mod inside a separate SkyBlock Enhanced instance on Minecraft 26.2. The replay drove the client with server packets and actual dashboard clicks. The release build passed 38 replay checks. The renderer checks covered StellaNav 1.0.6 and Skyblocker 6.10.4 and 6.11.0.
+
+- Two Diamante encounters produced one Handle. The report for the first run contained the Handle, 80,000 kill coins, a salvageable Zombie Commander Helmet and three Zombie Soldier Shards. The second showed a defeated giant and zero Handle income.
+- The replay supplied room data to the installed StellaNav and Skyblocker renderers. Captures at two different positions and scales matched the corresponding regions of native Minecraft screenshots pixel for pixel. The test also delivered a server map packet without a custom map overlay and checked the saved colors, orientation and transparent tiles.
+- The dashboard opened both run reports, itemized loot and session totals. Continuing while a different session was running saved it first and resumed the selected entry with its original two runs and elapsed time. Ending the continued session updated its archive.
+- The loader read seven existing pre-v1.5 archives from local copies. An older session opened from the second page with its original statistics, session-wide loot and explicit empty states for per-run loot and maps. A public Hypixel run was outside the offline replay.
 
 ### Version 1.4.0
 

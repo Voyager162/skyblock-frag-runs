@@ -10,6 +10,7 @@ import dev.fragruns.data.ItemCatalog;
 import dev.fragruns.data.MarketService;
 import dev.fragruns.data.SessionStore;
 import dev.fragruns.tracking.GameTracker;
+import dev.fragruns.tracking.RunMapRecorder;
 import dev.fragruns.ui.DashboardScreen;
 import dev.fragruns.ui.FragHud;
 import net.fabricmc.api.ClientModInitializer;
@@ -36,6 +37,7 @@ public final class FragRunsClient implements ClientModInitializer {
     private ModConfig config;
     private MarketService market;
     private GameTracker tracker;
+    private RunMapRecorder maps;
     private KeyMapping sessionKey,dashboardKey;
     private final PressLatch sessionLatch=new PressLatch();
     private boolean previewOpened;
@@ -47,6 +49,7 @@ public final class FragRunsClient implements ClientModInitializer {
         config=store.loadConfig(); store.loadSession(session);
         market=new MarketService(store.directory(),catalog);
         tracker=new GameTracker(session,catalog);
+        maps=new RunMapRecorder(session,store.maps());
         var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath("fragruns","session"));
         sessionKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.fragruns.session",InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_F7,category));
         dashboardKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.fragruns.dashboard",InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_F9,category));
@@ -55,6 +58,7 @@ public final class FragRunsClient implements ClientModInitializer {
             while(sessionKey.consumeClick()) if(client.player!=null && KeyMappingHelper.getBoundKeyOf(sessionKey).getType()==InputConstants.Type.MOUSE) sessionKeyPressed();
             while(dashboardKey.consumeClick()) if(client.player!=null) openDashboard(false);
             tracker.tick(client);
+            maps.tick(client,tracker.inBossPhase());
             if(session.active() || config.showStoppedHud && !session.id().isEmpty() || client.gui.screen() instanceof DashboardScreen || client.gui.screen() instanceof dev.fragruns.ui.LayoutScreen) market.tick(config.priceRefreshSeconds);
             long now=System.nanoTime()/1_000_000;
             if(session.running() && now-savedAt>=10_000) { store.saveSession(session); savedAt=now; }
@@ -62,7 +66,7 @@ public final class FragRunsClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler,client)->{ tracker.disconnected(handler.getConnection()); store.saveSession(session); });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client->{
             if(session.running()) { tracker.finishSession(); session.stop(); }
-            store.saveSession(session); store.saveConfig(config); market.close();
+            store.saveSession(session); store.saveConfig(config); maps.close(); market.close();
         });
         ClientCommandRegistrationCallback.EVENT.register((dispatcher,access)->dispatcher.register(literal("fragruns")
                 .executes(ctx->{ Minecraft.getInstance().execute(()->openDashboard(false)); return 1; })
@@ -79,7 +83,11 @@ public final class FragRunsClient implements ClientModInitializer {
         });
     }
     public void sessionKeyPressed() {
-        if(!session.active()) { store.archive(session); tracker.reset(); }
+        if(!session.active()) {
+            try { store.archiveChecked(session); }
+            catch (java.io.IOException e) { notifyPlayer("Could not save the previous session. Check file access and retry."); return; }
+            tracker.reset();
+        }
         if(session.running()) tracker.finishSession();
         var result=session.pressSessionKey();
         if(result==Session.KeyResult.STARTED) {
@@ -98,6 +106,19 @@ public final class FragRunsClient implements ClientModInitializer {
         if(result==Session.KeyResult.STOPPED) { store.saveSession(session); store.archive(session); notifyPlayer("Frag run session saved."); }
     }
     private void modShowHud() { config.showHud=true; store.saveConfig(config); }
+    public void continueSession(String id) throws java.io.IOException {
+        boolean same=session.id().equals(id);
+        boolean alreadyRunning=same && session.running();
+        if (!same && session.running()) tracker.finishSession();
+        store.continueSession(session,id);
+        if (!alreadyRunning) {
+            if (same && session.inDungeon()) tracker.resetTrackingBaselines(); else tracker.reset();
+            modShowHud();
+            tracker.tick(Minecraft.getInstance());
+            notifyPlayer("Session continued.");
+        }
+        Minecraft.getInstance().gui.setScreen(null);
+    }
     private void notifyPlayer(String text) {
         var player=Minecraft.getInstance().player;
         if(player!=null) player.sendOverlayMessage(Component.literal(text));
@@ -121,7 +142,10 @@ public final class FragRunsClient implements ClientModInitializer {
     public void screenKeyReleased(net.minecraft.client.input.KeyEvent event) { if(sessionKey.matches(event)) sessionLatch.release(); }
     public void saveConfig() { store.saveConfig(config); }
     public double hourlyProfit(LootLedger.Valuation collected) {
-        return HourlyProfit.calculate(session,collected,market.prices().values(),id->{
+        return hourlyProfit(session,collected);
+    }
+    public double hourlyProfit(Session selected,LootLedger.Valuation collected) {
+        return HourlyProfit.calculate(selected,collected,market.prices().values(),id->{
             var item=catalog.get(id);return item==null?0:item.npcPrice();
         },config);
     }
@@ -130,6 +154,7 @@ public final class FragRunsClient implements ClientModInitializer {
     public ModConfig config() { return config; }
     public MarketService market() { return market; }
     public GameTracker tracker() { return tracker; }
+    public RunMapRecorder maps() { return maps; }
     public SessionStore store() { return store; }
     public String sessionKeyName() { return sessionKey.getTranslatedKeyMessage().getString(); }
     public String dashboardKeyName() { return dashboardKey.getTranslatedKeyMessage().getString(); }

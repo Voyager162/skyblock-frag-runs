@@ -16,6 +16,19 @@ class EssenceBalancesTest {
     @Test void existingEssenceAndOutOfRunChangesAreNotProfit() {
         var b=new EssenceBalances();b.observeHub(Map.of("ESSENCE_UNDEAD",100L),(id,n)->fail());b.observeHub(Map.of("ESSENCE_UNDEAD",1000L),(id,n)->fail());
     }
+    @Test void twoRunsWithNoInterveningBalanceKeepOnlyTheSharedSilentGainAtSessionLevel() {
+        var b=new EssenceBalances();
+        b.observeHub(Map.of("ESSENCE_UNDEAD",100L),(id,n)->fail());
+        b.enter(); b.found("ESSENCE_UNDEAD",3); b.leave();
+        b.enter(); b.found("ESSENCE_UNDEAD",7); b.salvaged("ESSENCE_UNDEAD",20); b.leave();
+        var shared=new HashMap<String,Long>();
+        b.observeHub(Map.of("ESSENCE_UNDEAD",180L),(id,n)->fail(),shared::put);
+        assertEquals(50L,shared.get("ESSENCE_UNDEAD"));
+        b.enter(); b.leave();
+        var single=new HashMap<String,Long>();
+        b.observeHub(Map.of("ESSENCE_UNDEAD",190L),single::put,(id,n)->fail());
+        assertEquals(10L,single.get("ESSENCE_UNDEAD"));
+    }
     @Test void partialTabUpdateWaitsForCompleteSnapshot() {
         var b=new EssenceBalances();b.observeHub(Map.of("ESSENCE_UNDEAD",100L,"ESSENCE_WITHER",10L),(id,n)->fail());b.enter();b.leave();
         b.observeHub(Map.of("ESSENCE_UNDEAD",110L),(id,n)->fail());var found=new HashMap<String,Long>();

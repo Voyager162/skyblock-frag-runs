@@ -3,7 +3,7 @@
   "id": "fragruns",
   "version": "${version}",
   "name": "Skyblock Frag Runs",
-  "description": "Floor 7 sessions, giant drops, live profit breakdown and a movable SkyblockAddons-inspired HUD.",
+  "description": "Track and continue Floor VII sessions with saved dungeon maps, itemized run profits and a movable HUD.",
   "authors": ["Skyblock Frag Runs"],
   "license": "MIT",
   "environment": "client",

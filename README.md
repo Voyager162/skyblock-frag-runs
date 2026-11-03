@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Version 1.4.0** lets you choose each HUD section and combine giant-fragment income into a single subtotal. [Validation details](VALIDATION.md)
+**Version 1.5.0** adds a session log with individual run reports, recorded dungeon maps and a way to continue a saved session. [Validation details](VALIDATION.md)
 
-[Download v1.4.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.4.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.5.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.5.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Put `skyblock-frag-runs-1.4.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.5.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -21,12 +21,22 @@ Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or new
 | **F7 with no active session** | Start a fresh session and show the HUD. |
 | **F7 once during a session** | Pause, or resume a paused session. Both timers and loot collection pause together. |
 | **F7 twice within 1.5 seconds during a session** | End and save a running or paused session. The press that starts a fresh session is separate. |
-| **F9** or **`/fragruns`** | Open session details, loot, run history, and settings. |
+| **F9** or **`/fragruns`** | Open session details, loot, the session log and settings. |
 | **`/fragruns settings`** | Open settings directly. |
 | **Mod Menu → Skyblock Frag Runs → Configure** | Open settings. |
 | **`/fragruns session`** | Same session toggle and confirmation as F7. |
 
 Rebind the keys in **Options → Controls → Key Binds → Skyblock Frag Runs**. F7 avoids MarketGuard's F8 HUD editor in SkyBlock Enhanced. Closing the settings/details screen keeps the session running. Stopping hides the HUD unless **Show saved HUD** is enabled. Starting a new session archives the previous one.
+
+## Session log
+
+Open **F9 → Session log** and select a session by its local start time. **Runs** lists every recorded exit, newest first. **Session totals** shows elapsed time, run records, giant encounters, drop rates and profit estimates. **Loot & profit** itemizes everything collected across that session.
+
+Select a run to see its duration, start and end times, exit reason, giant, fragment result and profit breakdown. **Itemized loot** includes quantities, kill coins, shards, direct essence and the estimated salvage value of gear. Saved quantities use current prices and your tax and salvage settings. If a single hub essence update covers multiple runs, the shared gain appears in the session total.
+
+**Dungeon map** shows the latest layout recorded for that run. With StellaNav or Skyblocker drawing the map, the mod captures its visible rooms, colors, labels and icons at your HUD position and scale. When neither provides a capture, it can save the server's Magical Map. Runs with no map data show **Map not recorded**. Older sessions retain their run times, giants, drops and session-wide loot. Per-run item details and map recording start with v1.5.
+
+Choose **Continue session** while in a world to resume from the saved elapsed time. Subsequent runs and loot join the same entry. If another session is active, **Save and switch** archives it first and records an unfinished run as partial.
 
 ## HUD and layout
 
@@ -95,7 +105,7 @@ A failed refresh retains the last good prices while retrying in the background. 
 
 ## Saves
 
-Open **F9 → Settings → Clear session history** (also available under **Run history**) and confirm **Clear history**. This applies to the current Minecraft profile. During a session it clears older sessions and keeps the active run and loot. After stopping it also clears the displayed last session. Settings and price data are kept.
+Open **F9 → Settings → Clear session history** (also available under **Session log**) and confirm **Clear history**. This applies to the current Minecraft profile. During a session it clears older sessions and their maps and keeps the active session's runs, maps and loot. After stopping it also clears the displayed last session. Settings and price data are kept.
 
 Files live under the instance's `config/fragruns/` directory:
 
@@ -103,6 +113,7 @@ Files live under the instance's `config/fragruns/` directory:
 - `session.json`: checkpoint saved every 10 seconds and on stop/disconnect/shutdown.
 - `session.json.bak`: previous checkpoint.
 - `history/*.json`: archived sessions.
+- `maps/<run-id>.png` holds the most recent recorded map for each run.
 - `prices.json`: last good price cache.
 
 Writes replace files atomically when supported. An explicitly paused session can resume after restarting Minecraft. A live session recovered after interruption opens as stopped, and its unfinished run is retained as partial up to the latest checkpoint. Offline time is excluded.
