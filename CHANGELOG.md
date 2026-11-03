@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.1 — Adjustable warp delay
+
+- Add a **Warp delay** control under **F9 → Settings → Run actions & report**. Choose 0–10 seconds in 0.1-second steps. New and upgraded profiles default to 1.5 seconds.
+
 ## 1.9.0 — Run reports and solo F7 controls
 
 - Add a four-second post-run HUD report with time, giant, fragment outcome, five profit categories and the total. Choose a display time from 1 to 30 seconds or turn the report off.

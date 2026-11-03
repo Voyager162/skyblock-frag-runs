@@ -1,15 +1,15 @@
-# Validation — version 1.9.0
+# Validation — version 1.9.1
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**176 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**179 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
 | Session | 22 | Entry/exit timing, active and paused clocks, pause/resume inside one run, double presses from either state, the inclusive 1.5-second boundary, key repeats, run statistics, partial stops, and recovery |
-| Run actions | 13 | One command per visit, loot and hub delays, party replies and timeouts, manual travel, disabled or paused controls, and identifying the solo option without selecting another floor or party |
+| Run actions | 16 | One command per visit, all 101 warp delays including immediate dispatch, settings migration and limits, mid-run setting changes, party replies and timeouts, manual travel, paused controls, and identifying the solo option |
 | Timed report | 5 | Upgrading old settings, visible duration, disabling the card, early exits, run ownership, late stash and coin receipts, unpriced items and all five profit categories |
 | Accounting | 20 | Pickup/inventory reconciliation, expiring credits, exact pre-run and post-run purse balances, transaction exclusions, interrupted or late returns, coin losses, pricing, salvage, and seven-category profit breakdown |
 | Giant drops | 3 | Carried stacks reappearing across a warp or moving during a kill, matching-encounter evidence, and delayed packet/inventory delivery in both orders |
@@ -30,6 +30,12 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.9.1
+
+The Minecraft replay starts with a v1.9.0 settings file. It checks the 1.5-second upgrade default, selects 0.3 seconds and later 2.5 seconds through the F9 buttons, and reads both values back from disk. The integrated server measures time from the giant event to receiving `/warp dhub`. The same replay exercises single-command dispatch, paused sessions, solo entry and the run report.
+
+Both SkyBlock Enhanced configurations passed 35 in-game checks each. The 0.3-second setting measured 345 ms on Skyblocker 6.10.4 and 396 ms on 6.11.0. The 2.5-second setting measured 2,550 ms on both, including client and server tick scheduling.
 
 ### Version 1.9.0
 

@@ -10,6 +10,38 @@ class RunActionsTest {
     final RunActions a=new RunActions();
     final UUID run=UUID.randomUUID();
     RunActionsTest(){a.enter(run);}
+    @Test void existingSettingsKeepTheOldDelayAndSaveTheSelectedValue() {
+        var gson=new com.google.gson.Gson();
+        var c=gson.fromJson("{\"warpOnGiantKill\":true,\"reportSeconds\":8}",ModConfig.class);
+        c.sanitize();assertEquals(1500,c.warpDelayMs);assertTrue(c.warpOnGiantKill);assertEquals(8,c.reportSeconds);
+        c.warpDelayMs=2360;c.sanitize();assertEquals(2400,c.warpDelayMs);
+        assertEquals(2400,gson.fromJson(gson.toJson(c),ModConfig.class).warpDelayMs);
+        c.warpDelayMs=Integer.MIN_VALUE;c.sanitize();assertEquals(0,c.warpDelayMs);
+        c.warpDelayMs=Integer.MAX_VALUE;c.sanitize();assertEquals(10_000,c.warpDelayMs);
+    }
+    @Test void everyAdjustableDelayWarpsOnceAtTheSelectedTime() {
+        for (int delay=0;delay<=10_000;delay+=100) {
+            a.enter(run);
+            var first=a.dungeon(run,true,true,true,delay,1000);
+            if (delay==0) assertEquals(WARP,first);
+            else {
+                assertEquals(NONE,first);
+                assertEquals(NONE,a.dungeon(run,true,true,true,delay,1000+delay-1));
+                assertEquals(WARP,a.dungeon(run,true,true,true,delay,1000+delay));
+            }
+            assertEquals(NONE,a.dungeon(run,true,true,true,delay,1001+delay));
+        }
+    }
+    @Test void changingTheSettingAppliesToTheNextKillAndPausingCancelsALongDelay() {
+        a.dungeon(run,true,true,true,2800,100);
+        assertEquals(NONE,a.dungeon(run,true,true,true,100,200));
+        assertEquals(WARP,a.dungeon(run,true,true,true,100,2900));
+        a.enter(run);a.dungeon(run,true,true,true,100,3000);
+        assertEquals(WARP,a.dungeon(run,true,true,true,100,3100));
+        a.enter(run);a.dungeon(run,true,true,true,10_000,4000);
+        a.clear();
+        assertEquals(NONE,a.dungeon(run,true,true,true,10_000,14000));
+    }
     @Test void noWarpFromSightingsOrDisabledKills() {
         assertEquals(NONE,a.dungeon(run,false,true,true,0));
         a.dungeon(run,true,false,true,100);

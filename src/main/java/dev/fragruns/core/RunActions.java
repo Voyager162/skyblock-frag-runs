@@ -28,10 +28,13 @@ public final class RunActions {
         if (tracked && requeue) {queue=Queue.HUB;expires=now+25_000;}
     }
     public Action dungeon(UUID run,boolean killed,boolean enabled,boolean available,long now) {
+        return dungeon(run,killed,enabled,available,ModConfig.DEFAULT_WARP_DELAY_MS,now);
+    }
+    public Action dungeon(UUID run,boolean killed,boolean enabled,boolean available,int delayMs,long now) {
         if (visit==null || !visit.equals(run)) return Action.NONE;
         if (killed && !sawKill) {
             sawKill=true;
-            if (enabled) warpAt=now+1_500; // Let the server deliver drops and inventory changes first.
+            if (enabled) warpAt=now+delayMs;
         }
         if (!enabled || warpAt>=0 && now>warpAt+3_000) warpAt=-1;
         if (warpAt<0 || now<warpAt || !available) return Action.NONE;

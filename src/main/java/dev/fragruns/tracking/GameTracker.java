@@ -223,7 +223,7 @@ public final class GameTracker {
         settleFragments(now,false);
         if (f7 && !bossPhase && !transferring) command(client,actions.dungeon(session.currentRunId(),
                 giants.confirmedDeath() || session.currentFragments()>0,
-                config.warpOnGiantKill,available,now));
+                config.warpOnGiantKill,available,config.warpDelayMs,now));
     }
     private void command(Minecraft client,RunActions.Action action) {
         if (action==RunActions.Action.NONE || client.getConnection()==null) return;
