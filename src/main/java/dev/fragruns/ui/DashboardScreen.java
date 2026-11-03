@@ -49,8 +49,8 @@ public final class DashboardScreen extends Screen {
         Theme.round(g,0,0,WIDTH,HEIGHT,Theme.PANEL);
         Theme.fit(g,"Skyblock Frag Runs",14,13,310,Theme.BLUE,1.5f);
         Theme.text(g,"FLOOR VII  /  SESSION TRACKER",15,34,Theme.MUTED);
-        String badge=Boolean.getBoolean("fragruns.preview") ? "PREVIEW DATA" : s.running() ? "SESSION LIVE" : s.elapsedMs()>0 ? "SESSION SAVED" : "READY TO RUN";
-        Theme.right(g,badge,WIDTH-15,16,s.running()?Theme.GREEN:Theme.MUTED);
+        String badge=Boolean.getBoolean("fragruns.preview") ? "PREVIEW DATA" : s.paused() ? "SESSION PAUSED" : s.running() ? "SESSION LIVE" : s.elapsedMs()>0 ? "SESSION SAVED" : "READY TO RUN";
+        Theme.right(g,badge,WIDTH-15,16,s.paused()?Theme.GOLD:s.running()?Theme.GREEN:Theme.MUTED);
         Theme.right(g,"v"+mod.version()+"  •  Fabric 26.2",WIDTH-15,32,Theme.MUTED);
         String[] tabs={"Overview","Loot & profit","Run history","Settings"};
         for(int i=0;i<tabs.length;i++) {
@@ -61,9 +61,9 @@ public final class DashboardScreen extends Screen {
         g.fill(14,326,WIDTH-14,327,Theme.LINE);
         Theme.fit(g,"Session: "+mod.sessionKeyName()+" • Settings: "+mod.dashboardKeyName(),15,334,355,Theme.MUTED,1);
         Theme.right(g,String.format(Locale.ROOT,"%.2f%% tax",mod.config().bazaarTaxPercent),WIDTH-15,334,Theme.MUTED);
-        String action=!s.running()?"Start session":s.confirmingStop()?"Press again to stop":"Stop session";
+        String action=!s.active()?"Start session":s.confirmingStop()?"Press again to end":s.paused()?"Resume session":"Pause session";
         button(g,14,352,142,20,action,s.confirmingStop()?Theme.RED:s.running()?Theme.GOLD:Theme.GREEN,mod::sessionKeyPressed,
-                "Start: "+mod.sessionKeyName()+". Stopping needs two separate presses within 4 seconds.",false);
+                "One press starts, pauses or resumes. Two presses within 1.5 seconds end an active session.",false);
         button(g,164,352,130,20,"Edit HUD",Theme.BLUE,()->minecraft.gui.setScreen(new LayoutScreen(mod,true,this)),"Drag and resize the in-game overlay.",false);
         button(g,420,352,116,20,"Close",Theme.MUTED,this::onClose,"Esc closes this menu; the session keeps running.",false);
         if(s.confirmingStop()) {
@@ -74,8 +74,8 @@ public final class DashboardScreen extends Screen {
     }
     private void overview(GuiGraphicsExtractor g) {
         var s=mod.session(); var value=valuation();
-        metric(g,14,"SESSION",Theme.time(s.elapsedMs()),Theme.TEXT,s.running()?"Running":"Session saved");
-        metric(g,146,"CURRENT RUN",Theme.time(s.runMs()),Theme.GOLD,s.inDungeon()?"Enter to exit":"Waiting for F7");
+        metric(g,14,"SESSION",Theme.time(s.elapsedMs()),Theme.TEXT,s.paused()?"Paused":s.running()?"Running":"Session saved");
+        metric(g,146,"CURRENT RUN",Theme.time(s.runMs()),Theme.GOLD,s.paused()?"Paused":s.inDungeon()?"Enter to exit":"Waiting for F7");
         metric(g,278,"EST. PROFIT",Theme.coins(value.total()),Theme.GOLD,"After sell tax");
         metric(g,410,"COINS / HOUR",Theme.coins(mod.hourlyProfit(value)),Theme.GREEN,mod.config().expectedFragmentProfit?"Expected fragments":"Collected drops");
         if(mouseX>=410&&mouseX<=536&&mouseY>=82&&mouseY<=139) tooltip=hourlyProfitTip();
@@ -117,7 +117,7 @@ public final class DashboardScreen extends Screen {
         Theme.text(g,"PROFIT BREAKDOWN",24,94,Theme.BLUE);
         int y=117;
         for(Giant giant:Giant.values()) {
-            profitRow(g,giant.fragmentName,value.fragmentValues().get(giant),y,giant.color);
+            profitRow(g,giant.fragmentName+" ×"+mod.session().loot().itemCount(giant.itemId),value.fragmentValues().get(giant),y,giant.color);
             y+=22;
         }
         profitRow(g,"All essence",value.essence(),205,Theme.TEXT);
@@ -126,7 +126,16 @@ public final class DashboardScreen extends Screen {
         g.fill(24,271,216,272,Theme.LINE);
         profitRow(g,"Est. profit",value.total(),282,Theme.GOLD);
         Theme.text(g,"After sell tax",24,301,Theme.MUTED);
-        if(mouseX>=14&&mouseX<=228&&mouseY>=82&&mouseY<=318) tooltip="All essence includes found essence and estimated gear salvage. Other items includes Spirit Leaps, Bonzo/Livid/dragon fragments and remaining drops. Kill coins uses net F7 purse gains, excluding observed transactions.";
+        if(mouseX>=14&&mouseX<=228&&mouseY>=82&&mouseY<=318) {
+            tooltip="Other items includes Hunting Box shards, Spirit Leaps and other dungeon drops. Fragment subtotals use the collected quantity and current sell price after tax.";
+            for (var giant : Giant.values()) {
+                int rowY = 117 + giant.ordinal()*22;
+                if (mouseY >= rowY-4 && mouseY < rowY+16) {
+                    Double quote = mod.market().prices().values().get(giant.itemId);
+                    if (quote != null) tooltip = giant.fragmentName+" sells for "+String.format(Locale.ROOT,"%,.1f",quote)+" Bazaar coins each before tax.";
+                }
+            }
+        }
         Theme.panel(g,238,82,298,236);
         Theme.text(g,"COLLECTED LOOT",248,94,Theme.BLUE);
         Theme.right(g,"QTY       VALUE",524,110,Theme.MUTED);
@@ -194,17 +203,17 @@ public final class DashboardScreen extends Screen {
         button(g,497,236,28,22,"+",Theme.BLUE,()->{mod.config().bazaarTaxPercent=Math.min(10,mod.config().bazaarTaxPercent+0.05);mod.saveConfig();},"Increase sell tax by 0.05%",false);
         button(g,25,265,500,22,"Giant fragment profit/h: "+(mod.config().expectedFragmentProfit?"Expected drops":"Collected drops"),Theme.BLUE,()->{mod.config().expectedFragmentProfit=!mod.config().expectedFragmentProfit;mod.saveConfig();},hourlyProfitTip(),false);
         Theme.fit(g,"Session: "+mod.sessionKeyName()+" • Settings: "+mod.dashboardKeyName()+" • Rebind in Options > Controls > Key Binds",25,291,500,Theme.MUTED,0.85f);
-        Theme.fit(g,mod.store().warning().isEmpty()?"Two presses within 4 seconds to stop. Esc cancels the confirmation.":mod.store().warning(),25,301,500,mod.store().warning().isEmpty()?Theme.MUTED:Theme.RED,0.85f);
+        Theme.fit(g,mod.store().warning().isEmpty()?"One press pauses or resumes. Two presses within 1.5 seconds end the session.":mod.store().warning(),25,301,500,mod.store().warning().isEmpty()?Theme.MUTED:Theme.RED,0.85f);
     }
     private void confirmClearHistory() {
-        boolean active = mod.session().running();
+        boolean active = mod.session().active();
         String sessionId = mod.session().id();
         String explanation = active
-                ? "Permanently delete previous sessions in this profile? Your current session will keep running."
+                ? "Permanently delete previous sessions in this profile? Your current session will be kept."
                 : "Permanently delete all saved sessions in this profile, including the last session and its runs and loot?";
         var dialog = new ConfirmScreen(confirmed -> {
             if (confirmed) {
-                if (active != mod.session().running() || !sessionId.equals(mod.session().id())) {
+                if (active != mod.session().active() || !sessionId.equals(mod.session().id())) {
                     confirmClearHistory();
                     return;
                 }

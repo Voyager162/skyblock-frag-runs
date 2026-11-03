@@ -1,5 +1,5 @@
 {
   "key.category.fragruns.session": "Skyblock Frag Runs",
-  "key.fragruns.session": "Start session / press twice to stop",
+  "key.fragruns.session": "Start, pause or resume / double-press to end",
   "key.fragruns.dashboard": "Open frag run dashboard"
 }

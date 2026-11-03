@@ -33,7 +33,8 @@ public final class MarketService implements AutoCloseable {
         this.cache = directory.resolve("prices.json"); this.catalog = catalog;
         if (Files.isRegularFile(cache)) try {
             Prices saved = JsonFiles.read(cache,Prices.class);
-            if (saved.values != null && saved.updatedAt > 0) prices = new Prices(saved.updatedAt, sanitize(saved.values));
+            if (saved.values != null && saved.updatedAt > 0 && saved.updatedAt <= System.currentTimeMillis()+60_000)
+                prices = new Prices(saved.updatedAt, sanitize(saved.values));
         } catch (IOException ignored) { failure = "Cached prices unavailable"; }
     }
     public Prices prices() { return prices; }
@@ -48,10 +49,14 @@ public final class MarketService implements AutoCloseable {
         worker.execute(() -> {
             try {
                 Prices fresh = parseBazaar(fetch("https://api.hypixel.net/v2/skyblock/bazaar"));
+                if (fresh.updatedAt() < prices.updatedAt()) throw new IOException("Older Bazaar snapshot");
                 prices = fresh;
                 failure = "";
                 try { JsonFiles.write(cache, fresh); } catch (IOException ignored) { /* Live prices remain valid. */ }
-            } catch (Exception e) { failure = "Price update failed; last good prices retained"; }
+            } catch (Exception e) {
+                failure = "Price update failed; last good prices retained";
+                nextRefresh = System.currentTimeMillis() + 30_000;
+            }
             try {
                 if (now >= nextCatalog) {
                     nextCatalog = now + 6*60*60*1000L;
@@ -63,7 +68,7 @@ public final class MarketService implements AutoCloseable {
     }
     private JsonObject fetch(String url) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(12))
-                .header("User-Agent","SkyblockFragRuns/1.2.0 (client-side dungeon tracker)").GET().build();
+                .header("User-Agent","SkyblockFragRuns/1.3.0 (client-side dungeon tracker)").GET().build();
         var response = client.send(request,HttpResponse.BodyHandlers.ofString());
         if (response.statusCode()!=200) throw new IOException("HTTP "+response.statusCode());
         if (response.body().length()>15_000_000) throw new IOException("Response too large");

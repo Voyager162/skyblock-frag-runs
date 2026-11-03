@@ -12,7 +12,7 @@ public final class FragHud {
     public static void render(GuiGraphicsExtractor g,FragRunsClient mod) {
         var mc=Minecraft.getInstance();
         if(mc.player==null || mc.gui.hud.isHidden() || mc.gui.screen() instanceof DashboardScreen || mc.gui.screen() instanceof LayoutScreen) return;
-        if(!mod.config().showHud || !mod.session().running() && !mod.config().showStoppedHud) return;
+        if(!mod.config().showHud || !mod.session().active() && !mod.config().showStoppedHud) return;
         var b=mod.config().hud.fit(mc.getWindow().getGuiScaledWidth(),mc.getWindow().getGuiScaledHeight(),WIDTH,HEIGHT);
         g.pose().pushMatrix(); g.pose().translate((float)b.x(),(float)b.y()); g.pose().scale((float)b.scale(),(float)b.scale());
         draw(g,mod); g.pose().popMatrix();
@@ -23,7 +23,7 @@ public final class FragHud {
         Theme.round(g,0,0,WIDTH,BODY_HEIGHT,Theme.PANEL);
         g.fill(8,6,WIDTH-8,7,Theme.BLUE);
         Theme.text(g,"FRAG RUNS",10,13,Theme.BLUE);
-        Theme.right(g,Boolean.getBoolean("fragruns.preview")?"PREVIEW":s.running()?"LIVE":"SAVED",WIDTH-10,13,s.running()?Theme.GREEN:Theme.MUTED);
+        Theme.right(g,Boolean.getBoolean("fragruns.preview")?"PREVIEW":s.paused()?"PAUSED":s.running()?"LIVE":"SAVED",WIDTH-10,13,s.paused()?Theme.GOLD:s.running()?Theme.GREEN:Theme.MUTED);
         row(g,"Session",Theme.time(s.elapsedMs()),31,Theme.TEXT);
         row(g,"Current run",Theme.time(s.runMs()),46,Theme.GOLD);
         g.fill(10,61,WIDTH-10,62,Theme.LINE);
@@ -47,7 +47,7 @@ public final class FragHud {
         Theme.text(g,"PROFIT BREAKDOWN",10,280,Theme.BLUE);
         y=297;
         for(Giant giant:Giant.values()) {
-            row(g,giant.fragmentName,Theme.coins(profit.fragmentValues().get(giant)),y,giant.color);
+            row(g,giant.fragmentName+" ×"+s.loot().itemCount(giant.itemId),Theme.coins(profit.fragmentValues().get(giant)),y,giant.color);
             y+=14;
         }
         row(g,"All essence",Theme.coins(profit.essence()),353,Theme.TEXT);

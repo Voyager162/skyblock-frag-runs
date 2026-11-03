@@ -1,27 +1,40 @@
-# Validation — version 1.2.0
+# Validation — version 1.3.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**100 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**111 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
-| Session | 19 | Entry/exit timing, downtime, fastest/slowest/last/average, early exits, repeated giant observations, drop probabilities, stop confirmation/expiry, rapid separate presses, held-key/duplicate-delivery protection, partial stops, crash checkpoints, stopped-session recovery, reset, hourly profit |
+| Session | 22 | Entry/exit timing, active and paused clocks, pause/resume inside one run, double presses from either state, the inclusive 1.5-second boundary, key repeats, run statistics, partial stops, and recovery |
 | Accounting | 20 | Pickup/inventory reconciliation, expiring credits, exact pre-run and post-run purse balances, transaction exclusions, interrupted or late returns, coin losses, pricing, salvage, and seven-category profit breakdown |
+| Giant drops | 3 | Carried stacks reappearing across a warp or moving during a kill, matching-encounter evidence, and delayed packet/inventory delivery in both orders |
+| Hunting Box | 4 | Product aliases, personal reward messages, old balances, manual deposits, message/balance reconciliation, pause boundaries and Bazaar valuation under Other items |
 | Hourly projection | 11 | Average run duration across different speeds, hub downtime, finished share, fixed drop odds, original-mode equivalence, other loot per session hour, zero/live runs, repricing, tax, and restored sessions |
 | Dungeon presence | 5 | Pre-warp multiline banner, real transfer, rebuilt or stale hub sidebar, confirmation after arrival, requeue inside F7, Master Mode, expired or cancelled entry, and disconnect |
 | Essence | 5 | Hub-balance parsing and reconciliation, chat reward subtraction, salvage receipt subtraction, partial balances, invalidation |
 | Layout | 9 | Seven viewport sizes from 320×240 through 3440×1440, multiple scales and anchors, invalid settings, clamping, coordinate round trips |
 | Signals | 15 | Formatted scoreboard/chat parsing, exact F7 recognition, other-floor/Master Mode rejection, purse precision, essence messages, transaction exclusions |
-| Data | 16 | Bazaar orders, catalog and salvage, settings migration, save recovery, clearing archives/backups, keeping a live run and loot, restart after clearing, and retry after a filesystem error |
+| Data | 17 | Bazaar orders, catalog and salvage, settings migration, save recovery, clearing history during running and paused sessions, pause persistence, restart after clearing, and retry after a filesystem error |
 
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
 
-### Version 1.2.0
+### Version 1.3.0
+
+A live 1.2.0 session recorded two Diamante encounters and credited two Handles. The player confirmed one actual drop. The recorded instant-sell quote was 366,667 coins, matching the observed sale of a single Handle. With 1.25% tax the correct value for one was 362,083.66 coins. Two incorrectly credited units explained the displayed 724.2k.
+
+The final JAR ran in Minecraft 26.2 with the 68 copied SkyBlock Enhanced mods and an isolated integrated server. The replay sent server inventory, chat, menu, entity and transfer packets and delivered press/repeat/release events through Minecraft's keyboard handler.
+
+- The first Diamante died and awarded a Handle. The second died without awarding one. The old Handle disappeared during transfer, reappeared, and moved to a different slot after the second kill. The session recorded two encounters, one Handle and a 50% drop rate. A separate direct inventory award during Watcher dialogue also counted when its giant name label was hidden.
+- A server Hunting Box screen showed ten existing Zombie Soldier shards. Two personal captures, two manually deposited shards, and one additional balance gain raised the box to fifteen. The loot ledger credited three and valued them entirely under Other items. A capture received while paused earned zero.
+- Holding F7 paused once. Both clocks froze and resumed in the same dungeon. Two distinct presses between client ticks ended the running session, and a double press also ended a previously paused session.
+- With a 366,667-coin bid and 1.25% tax, one Handle contributed 362,083.66 coins. Three shards at a 1,000-coin bid contributed 2,962.50. The running client also downloaded a current public Bazaar snapshot.
+
+### Previous version 1.2.0 checks
 
 A user running 1.0.0 on Hypixel recorded an 88-second session with zero runs. The game log showed the Floor VII queue banner, a server transfer about four seconds later, Mort and Watcher dialogue, and a return warp about 62 seconds after entry. The previous detector required a matching sidebar title and row before tracking any run activity.
 
@@ -59,7 +72,7 @@ The test instance used an offline preview identity. Other pack mods and Minecraf
 
 ## Limits and live-play checklist
 
-**An authenticated Hypixel F7 playtest of 1.2.0 is pending.** Local testing covers only the packet and display formats exercised. The earlier report established the failure on 1.0.0.
+**A live Hypixel F7 playtest of 1.3.0 is pending.** The 1.2.0 player report established the prior counting error. Local replay covers the packet and display formats exercised.
 
 For that playtest:
 
@@ -74,8 +87,8 @@ Profit is an estimate: purse deltas can include unrecognized transfers, server-o
 
 ## Release artifact
 
-`build/libs/skyblock-frag-runs-1.2.0.jar` — 162,924 bytes.
+`build/libs/skyblock-frag-runs-1.3.0.jar` — 185,925 bytes.
 
-SHA-256: `0b7953b6c4e45af328bf835eb206be0569264714e0352b8b392609fb3b4fedbf`
+SHA-256: `cf9c623c40b1cb9519f7a12f1339ca53637e7173370a194e8216256d9f103491`
 
 Install this jar, not the `-sources.jar`. Source code and build files are included in the project workspace.

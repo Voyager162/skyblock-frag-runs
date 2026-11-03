@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 — Pause, verified fragment counts, and Hunting Box shards
+
+- Press the session key once to start, pause or resume. Two presses within 1.5 seconds end a running or paused session. Paused sessions can resume after a restart.
+- Separate Watcher encounter counts from fragment pickup evidence. Carried stacks, late inventory restores and duplicate pickup observations no longer increase the fragment count on a second run.
+- Show collected quantity beside each giant fragment subtotal, with the current per-unit Bazaar quote on hover in Loot & profit.
+- Include Hunting Box shards in Other items using personal rewards and observed balance increases. Existing stock and manual deposits are excluded.
+
 ## 1.2.0 — F7 entry, session history, and run pace
 
 - Recognize the server's Floor VII announcement before chat filters, then start timing at the transfer into the dungeon. Read team-formatted sidebar rows and tab floor markers, and keep a confirmed run through incomplete sidebar updates.

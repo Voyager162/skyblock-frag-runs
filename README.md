@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Prerelease 1.2.0** fixes a missed F7 entry reported with SkyBlock Enhanced. Live verification of the fix on Hypixel is pending. [Validation details](VALIDATION.md)
+**Version 1.3.0** adds pause and resume, prevents carried giant fragments from being counted on the next run, and includes Hunting Box shards in Other items. [Validation details](VALIDATION.md)
 
-[Download v1.2.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.2.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.3.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.3.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Download `skyblock-frag-runs-1.2.0.jar` from the GitHub release and replace the previous Frag Runs JAR in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.3.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -18,8 +18,9 @@ Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or new
 
 | Control | Action |
 | --- | --- |
-| **F7** | Start a fresh session and show the HUD. |
-| **F7, then F7 again within 4 seconds** | Stop and save the current session. The first press only asks for confirmation. |
+| **F7 with no active session** | Start a fresh session and show the HUD. |
+| **F7 once during a session** | Pause, or resume a paused session. Both timers and loot collection pause together. |
+| **F7 twice within 1.5 seconds during a session** | End and save a running or paused session. The press that starts a fresh session is separate. |
 | **F9** or **`/fragruns`** | Open session details, loot, run history, and settings. |
 | **`/fragruns settings`** | Open settings directly. |
 | **Mod Menu → Skyblock Frag Runs → Configure** | Open settings. |
@@ -37,7 +38,7 @@ The design uses original drawing code with the SkyblockAddons palette: cyan `#A0
 
 ## What the counters mean
 
-- **Session time:** real elapsed time from starting to stopping. It includes time between runs and disconnects while Minecraft remains open. It does not depend on server TPS.
+- **Session time** measures elapsed time while running, including time between dungeons. Pausing freezes both clocks. Resuming in the same dungeon continues its run. Leaving a dungeon while paused records its tracked portion as partial.
 - **Current run** starts on arrival in the dungeon world after a Floor VII announcement, or when the sidebar or tab list identifies normal F7. It stops when you leave. Starting a session midway through a detected F7 times from activation.
 - **Total, fastest, slowest, last, average:** all recorded exits, including early resets. The current run enters these statistics when it ends.
 - **Finished giant encounter:** the giant was identified and its death, matching fragment pickup, or Watcher clear was observed before leaving. Merely seeing a giant and leaving early does not count toward giant statistics. Disconnects and manually stopping inside the dungeon are partial runs.
@@ -72,6 +73,10 @@ Probability references: [Watcher giant spawn table](https://hypixelskyblock.mine
 
 ## Profit accounting
 
+Fragment subtotals show the quantity actually credited, such as **Diamante's Handle ×1**. Hover over its row in **F9 → Loot & profit** to see the current Bazaar instant-sell quote per unit before tax. The row total includes the configured sell tax. A giant kill confirms an encounter. A Handle requires a pickup addressed to your player or a new inventory high during the matching giant encounter.
+
+**Hunting Box shards** appear under **Other items** at their individual Bazaar prices. Personal F7 capture, charm and loot-share messages can record earnings while the box is closed. To include silent gains, open the relevant box page during the session before earning the shards and revisit it in F7 or within one minute of returning. Each visible shard needs a starting balance. The tracker reconciles balance changes with observed captures and deposits. Opening a new page establishes its starting balances. Pausing resets these comparisons.
+
 The mod listens to incoming game data; it does not perform actions on your behalf.
 
 **Drops:** physical item pickup packets and positive inventory changes are reconciled so the same drop is counted once. Inventory is baselined on entering F7; existing items are excluded. Slot rearrangement is aggregated, container transfers are suppressed, and previously seen unique item UUIDs are excluded. This covers giant/boss/dragon fragments, spirit leaps, superboom, and other recognized drops. Loot remains in the session ledger after you sell it.
@@ -98,7 +103,7 @@ Files live under the instance's `config/fragruns/` directory:
 - `history/*.json`: archived sessions.
 - `prices.json`: last good price cache.
 
-Writes replace files atomically when supported. Corrupt saves are preserved, with backup recovery attempted. Recovered sessions are stopped: time while the game was closed is never added. A run interrupted by a crash is retained as partial up to the latest checkpoint.
+Writes replace files atomically when supported. An explicitly paused session can resume after restarting Minecraft. A live session recovered after interruption opens as stopped, and its unfinished run is retained as partial up to the latest checkpoint. Offline time is excluded.
 
 ## Build and tests
 
@@ -117,6 +122,8 @@ Linux/macOS:
 The wrapper pins Gradle 9.5.1 and the project pins Loom 1.17.17. Test results are in `build/reports/tests/test/index.html`. See `VALIDATION.md` for the checks performed and their limits.
 
 ## Data and design references
+
+Hunting Box names and Bazaar IDs come from the NotEnoughUpdates item repository. Its MIT notice is included in the JAR. [Shard data](https://github.com/NotEnoughUpdates/NotEnoughUpdates-REPO/blob/master/constants/attribute_shards.json) · [Server reward formats](https://github.com/SkyHanniStudios/SkyHanni/blob/beta/src/main/java/at/hannibal2/skyhanni/features/inventory/attribute/AttributeShardsData.kt)
 
 The initial implementation, tests, and documentation were generated with an AI coding agent from the project owner's feature requirements. This repository makes that source available for inspection and improvement. No AI service is required to run the mod.
 

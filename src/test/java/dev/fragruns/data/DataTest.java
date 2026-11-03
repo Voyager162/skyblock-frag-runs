@@ -71,6 +71,18 @@ class DataTest {
     @Test void newInstallDefaultsToExpectedFragmentIncome() {
         assertTrue(new SessionStore(directory).loadConfig().expectedFragmentProfit);
     }
+    @Test void pausedSessionRemainsResumableAcrossStoreReloadAndHistoryClear() throws Exception {
+        var store = new SessionStore(directory);
+        var clock = new AtomicLong(0);
+        var session = new Session(clock::get);
+        session.start();clock.set(5_000);session.loot().addCoins(25);session.pressSessionKey();
+        store.saveSession(session);clock.set(100_000);
+        var restored=new Session(clock::get);store.loadSession(restored);
+        assertTrue(restored.paused());assertEquals(5_000,restored.elapsedMs());
+        store.clearHistory(restored);
+        assertEquals(Session.KeyResult.RESUMED,restored.pressSessionKey());
+        assertEquals(session.id(),restored.id());assertEquals(25,restored.loot().coins());
+    }
     @Test void clearRemovesArchivesCheckpointsAndBackupsWithoutResurrectingThem() throws Exception {
         var store = new SessionStore(directory);
         var session = new Session(() -> 10);

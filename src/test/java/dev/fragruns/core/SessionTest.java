@@ -42,13 +42,13 @@ class SessionTest {
     }
     @Test void stopNeedsTwoSeparatePressesAndFreezesBothTimers() {
         assertEquals(Session.KeyResult.STARTED,session.pressSessionKey());advance(60_000);session.enterDungeon();advance(20_000);
-        assertEquals(Session.KeyResult.CONFIRM_STOP,session.pressSessionKey());assertTrue(session.running());
+        assertEquals(Session.KeyResult.PAUSED,session.pressSessionKey());assertTrue(session.paused());
         advance(400);assertEquals(Session.KeyResult.STOPPED,session.pressSessionKey());assertFalse(session.running());
         long elapsed=session.elapsedMs();advance(10_000);assertEquals(elapsed,session.elapsedMs());assertEquals(0,session.runMs());
     }
     @Test void expiredConfirmationMustBeArmedAgain() {
-        session.pressSessionKey();advance(1_000);session.pressSessionKey();advance(4_001);
-        assertFalse(session.confirmingStop());assertEquals(Session.KeyResult.CONFIRM_STOP,session.pressSessionKey());assertTrue(session.running());
+        session.pressSessionKey();advance(1_000);session.pressSessionKey();advance(1_501);
+        assertFalse(session.confirmingStop());assertEquals(Session.KeyResult.RESUMED,session.pressSessionKey());assertTrue(session.running());
     }
     @Test void twoDistinctPressesCanConfirmImmediatelyWithoutAnArtificialDelay() {
         session.pressSessionKey();advance(1_000);session.pressSessionKey();advance(10);
@@ -59,20 +59,42 @@ class SessionTest {
         assertTrue(latch.press());assertEquals(Session.KeyResult.STARTED,session.pressSessionKey());
         for(int i=0;i<100;i++) {advance(50);assertFalse(latch.press());}
         assertTrue(session.running());assertFalse(session.confirmingStop());
-        latch.release();assertTrue(latch.press());assertEquals(Session.KeyResult.CONFIRM_STOP,session.pressSessionKey());
+        latch.release();assertTrue(latch.press());assertEquals(Session.KeyResult.PAUSED,session.pressSessionKey());
         for(int i=0;i<10;i++) {advance(50);assertFalse(latch.press());}
-        assertTrue(session.running());
+        assertTrue(session.paused());
         latch.release();assertTrue(latch.press());assertEquals(Session.KeyResult.STOPPED,session.pressSessionKey());
     }
     @Test void duplicateUiAndTickDeliveryIsOnePressEvenDuringConfirmation() {
         var latch=new PressLatch();session.start();
         assertTrue(latch.press());session.pressSessionKey();
-        assertFalse(latch.press());assertTrue(session.confirmingStop());assertTrue(session.running());
+        assertFalse(latch.press());assertTrue(session.confirmingStop());assertTrue(session.paused());
         latch.release();assertTrue(latch.press());session.pressSessionKey();assertFalse(session.running());
     }
     @Test void escapeCanCancelStop() {
         session.pressSessionKey();advance(1_000);session.pressSessionKey();session.cancelConfirmation();advance(500);
-        assertEquals(Session.KeyResult.CONFIRM_STOP,session.pressSessionKey());
+        assertEquals(Session.KeyResult.RESUMED,session.pressSessionKey());
+    }
+    @Test void pauseFreezesBothClocksAndResumingInsideTheSameRunPreservesProgress() {
+        session.pressSessionKey(); session.enterDungeon(); advance(20_000);
+        session.observeGiant(Giant.DIAMANTE);
+        assertEquals(Session.KeyResult.PAUSED,session.pressSessionKey());
+        advance(90_000); session.collectFragment(Giant.DIAMANTE,1);
+        assertEquals(20_000,session.elapsedMs()); assertEquals(20_000,session.runMs());
+        assertFalse(session.giantKilled()); assertTrue(session.active());
+        assertEquals(Session.KeyResult.RESUMED,session.pressSessionKey()); advance(5_000);
+        session.giantDefeated(Giant.DIAMANTE); session.leaveDungeon("Warp",false);
+        assertEquals(25_000,session.last()); assertEquals(25_000,session.elapsedMs()); assertEquals(1,session.totalRuns());
+    }
+    @Test void doublePressFromAPausedSessionEndsAtTheInclusiveBoundary() {
+        session.start(); session.pressSessionKey(); advance(10_000);
+        assertEquals(Session.KeyResult.RESUMED,session.pressSessionKey());
+        advance(1_500); assertEquals(Session.KeyResult.STOPPED,session.pressSessionKey());
+        assertFalse(session.active());
+    }
+    @Test void pressThatStartsANewSessionDoesNotAlsoArmStop() {
+        assertEquals(Session.KeyResult.STARTED, session.pressSessionKey());
+        advance(30); assertEquals(Session.KeyResult.PAUSED, session.pressSessionKey());
+        advance(30); assertEquals(Session.KeyResult.STOPPED, session.pressSessionKey());
     }
     @Test void stoppingMidRunRecordsPartialAndKeepsLoot() {
         session.start();session.enterDungeon();session.collectFragment(Giant.DIAMANTE,1);

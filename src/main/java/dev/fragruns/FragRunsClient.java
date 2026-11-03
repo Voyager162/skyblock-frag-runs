@@ -51,11 +51,11 @@ public final class FragRunsClient implements ClientModInitializer {
         sessionKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.fragruns.session",InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_F7,category));
         dashboardKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.fragruns.dashboard",InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_F9,category));
         ClientTickEvents.END_CLIENT_TICK.register(client->{
-            if(client.gui.screen()==null && !sessionKey.isDown()) sessionLatch.release();
-            while(sessionKey.consumeClick()) if(client.player!=null && sessionLatch.press()) sessionKeyPressed();
+            // Keyboard presses arrive directly. Vanilla enqueues one click per mouse press for mouse bindings.
+            while(sessionKey.consumeClick()) if(client.player!=null && KeyMappingHelper.getBoundKeyOf(sessionKey).getType()==InputConstants.Type.MOUSE) sessionKeyPressed();
             while(dashboardKey.consumeClick()) if(client.player!=null) openDashboard(false);
             tracker.tick(client);
-            if(session.running() || client.gui.screen() instanceof DashboardScreen || client.gui.screen() instanceof dev.fragruns.ui.LayoutScreen) market.tick(config.priceRefreshSeconds);
+            if(session.active() || config.showStoppedHud && !session.id().isEmpty() || client.gui.screen() instanceof DashboardScreen || client.gui.screen() instanceof dev.fragruns.ui.LayoutScreen) market.tick(config.priceRefreshSeconds);
             long now=System.nanoTime()/1_000_000;
             if(session.running() && now-savedAt>=10_000) { store.saveSession(session); savedAt=now; }
         });
@@ -79,8 +79,8 @@ public final class FragRunsClient implements ClientModInitializer {
         });
     }
     public void sessionKeyPressed() {
-        if(!session.running()) { store.archive(session); tracker.reset(); }
-        if(session.confirmingStop()) tracker.finishSession();
+        if(!session.active()) { store.archive(session); tracker.reset(); }
+        if(session.running()) tracker.finishSession();
         var result=session.pressSessionKey();
         if(result==Session.KeyResult.STARTED) {
             modShowHud(); tracker.tick(Minecraft.getInstance());
@@ -88,7 +88,13 @@ public final class FragRunsClient implements ClientModInitializer {
             if(client.player!=null && (client.gui.screen() instanceof DashboardScreen || client.gui.screen() instanceof dev.fragruns.ui.LayoutScreen)) client.gui.setScreen(null);
             notifyPlayer("Frag run session started. "+dashboardKeyName()+" opens settings.");
         }
-        if(result==Session.KeyResult.CONFIRM_STOP) notifyPlayer("Press "+sessionKey.getTranslatedKeyMessage().getString()+" again within 4 seconds to stop your session.");
+        if(result==Session.KeyResult.PAUSED || result==Session.KeyResult.RESUMED) {
+            tracker.resetTrackingBaselines();
+            if (result == Session.KeyResult.RESUMED) tracker.tick(Minecraft.getInstance());
+            store.saveSession(session);
+            String action = result == Session.KeyResult.PAUSED ? "Paused" : "Resumed";
+            notifyPlayer(action + ". Press " + sessionKeyName() + " again within 1.5s to end the session.");
+        }
         if(result==Session.KeyResult.STOPPED) { store.saveSession(session); store.archive(session); notifyPlayer("Frag run session saved."); }
     }
     private void modShowHud() { config.showHud=true; store.saveConfig(config); }
@@ -97,8 +103,18 @@ public final class FragRunsClient implements ClientModInitializer {
         if(player!=null) player.sendOverlayMessage(Component.literal(text));
     }
     public void openDashboard(boolean settings) { Minecraft.getInstance().gui.setScreen(new DashboardScreen(this,settings)); }
+    public boolean keyboardInput(net.minecraft.client.input.KeyEvent event, int action) {
+        if (sessionKey == null || !sessionKey.matches(event)) return false;
+        if (action == GLFW.GLFW_RELEASE) sessionLatch.release();
+        var client = Minecraft.getInstance();
+        var screen = client.gui.screen();
+        boolean dashboard = screen instanceof DashboardScreen || screen instanceof dev.fragruns.ui.LayoutScreen;
+        if (client.player == null || screen != null && !dashboard) return false;
+        if (action == GLFW.GLFW_PRESS && sessionLatch.press()) sessionKeyPressed();
+        return dashboard;
+    }
     public boolean handleScreenKey(net.minecraft.client.input.KeyEvent event) {
-        if(sessionKey.matches(event)) { if(sessionLatch.press()) sessionKeyPressed(); return true; }
+        if(sessionKey.matches(event)) return true;
         if(dashboardKey.matches(event)) { Minecraft.getInstance().gui.setScreen(null); return true; }
         return false;
     }

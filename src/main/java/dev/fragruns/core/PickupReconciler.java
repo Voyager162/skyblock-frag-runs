@@ -6,7 +6,7 @@ import java.util.Map;
 
 /** A pickup animation and an inventory increase are two observations of ONE drop, in either order. */
 public final class PickupReconciler {
-    public enum Source { PACKET, INVENTORY }
+    public enum Source { PACKET, INVENTORY, REWARD }
     private static final class Credit {
         final Source source; final long at; int amount;
         Credit(Source source, long at, int amount) { this.source = source; this.at = at; this.amount = amount; }

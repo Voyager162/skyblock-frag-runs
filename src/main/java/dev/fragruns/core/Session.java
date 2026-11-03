@@ -10,16 +10,22 @@ import java.util.function.LongSupplier;
 public final class Session {
     public record Run(long milliseconds, Giant giant, boolean completed, int fragments, String endReason) {}
     public record GiantStats(int encounters, int fragments, int runsWithDrop, double frequency, double dropRate) {}
-    public record Snapshot(int schema, String id, long elapsedMs, List<Run> runs, LootLedger.Snapshot loot) {}
-    public enum KeyResult { STARTED, CONFIRM_STOP, STOPPED }
+    public record Snapshot(int schema, String id, long elapsedMs, List<Run> runs, LootLedger.Snapshot loot, boolean paused) {
+        public Snapshot(int schema, String id, long elapsedMs, List<Run> runs, LootLedger.Snapshot loot) {
+            this(schema, id, elapsedMs, runs, loot, false);
+        }
+    }
+    public enum KeyResult { STARTED, PAUSED, RESUMED, STOPPED }
+    private enum State { STOPPED, RUNNING, PAUSED }
+    private static final long DOUBLE_PRESS_MS = 1_500;
 
     private final LongSupplier clock;
     private final List<Run> runs = new ArrayList<>();
     private final LootLedger loot = new LootLedger();
     private String id = "";
-    private boolean running;
+    private State state = State.STOPPED;
     private long startedAt, elapsedBase;
-    private long confirmUntil = -1;
+    private long confirmUntil = Long.MIN_VALUE;
     private ActiveRun current;
 
     private static final class ActiveRun {
@@ -35,7 +41,7 @@ public final class Session {
 
     public KeyResult pressSessionKey() {
         long now = clock.getAsLong();
-        if (!running) {
+        if (!active()) {
             start();
             return KeyResult.STARTED;
         }
@@ -44,51 +50,58 @@ public final class Session {
             stop();
             return KeyResult.STOPPED;
         }
-        confirmUntil = now + 4_000;
-        return KeyResult.CONFIRM_STOP;
+        confirmUntil = now + DOUBLE_PRESS_MS;
+        if (running()) {
+            elapsedBase = elapsedMs();
+            state = State.PAUSED;
+            return KeyResult.PAUSED;
+        }
+        startedAt = now;
+        state = State.RUNNING;
+        return KeyResult.RESUMED;
     }
 
     public void start() {
-        if (running) return;
+        if (active()) return;
         runs.clear();
         loot.clear();
         elapsedBase = 0;
         startedAt = clock.getAsLong();
         id = java.time.Instant.now().toString().replace(':', '-');
         current = null;
-        confirmUntil = -1;
-        running = true;
+        confirmUntil = Long.MIN_VALUE;
+        state = State.RUNNING;
     }
 
     public void stop() {
-        if (!running) return;
+        if (!active()) return;
         // A manually stopped run is partial, even if its giant was defeated.
         leaveDungeon("Session stopped", true);
         elapsedBase = elapsedMs();
-        running = false;
-        confirmUntil = -1;
+        state = State.STOPPED;
+        confirmUntil = Long.MIN_VALUE;
     }
 
     public void enterDungeon() {
-        if (running && current == null) current = new ActiveRun(clock.getAsLong());
+        if (running() && current == null) current = new ActiveRun(elapsedMs());
     }
 
     public void observeGiant(Giant giant) {
-        if (current != null && giant != null && current.giant == null) current.giant = giant;
+        if (running() && current != null && giant != null && current.giant == null) current.giant = giant;
     }
 
     public void giantDefeated(Giant giant) {
-        if (current == null || giant == null) return;
+        if (!running() || current == null || giant == null) return;
         observeGiant(giant);
         if (current.giant == giant) current.killed = true;
     }
 
     public void watcherCleared() {
-        if (current != null && current.giant != null) current.killed = true;
+        if (running() && current != null && current.giant != null) current.killed = true;
     }
 
     public void collectFragment(Giant giant, int count) {
-        if (current == null || count <= 0) return;
+        if (!running() || current == null || count <= 0) return;
         giantDefeated(giant);
         if (current.giant == giant) current.fragments += count;
     }
@@ -100,17 +113,19 @@ public final class Session {
         current = null;
     }
 
-    public long elapsedMs() { return Math.max(0, elapsedBase + (running ? clock.getAsLong() - startedAt : 0)); }
-    public long runMs() { return current == null ? 0 : Math.max(0, clock.getAsLong() - current.enteredAt); }
-    public boolean running() { return running; }
+    public long elapsedMs() { return Math.max(0, elapsedBase + (running() ? clock.getAsLong() - startedAt : 0)); }
+    public long runMs() { return current == null ? 0 : Math.max(0, elapsedMs() - current.enteredAt); }
+    public boolean running() { return state == State.RUNNING; }
+    public boolean paused() { return state == State.PAUSED; }
+    public boolean active() { return state != State.STOPPED; }
     public boolean inDungeon() { return current != null; }
     public Giant currentGiant() { return current == null ? null : current.giant; }
     public boolean giantKilled() { return current != null && current.killed; }
-    public boolean confirmingStop() { return running && confirmUntil >= clock.getAsLong(); }
-    public long confirmRemainingMs() { return Math.max(0, confirmUntil - clock.getAsLong()); }
-    public void cancelConfirmation() { confirmUntil = -1; }
+    public boolean confirmingStop() { return active() && confirmUntil >= clock.getAsLong(); }
+    public long confirmRemainingMs() { return confirmingStop() ? Math.max(0, confirmUntil - clock.getAsLong()) : 0; }
+    public void cancelConfirmation() { confirmUntil = Long.MIN_VALUE; }
     public void clearSaved() {
-        if (running) throw new IllegalStateException("A session is running");
+        if (active()) throw new IllegalStateException("A session is active");
         id = "";
         elapsedBase = 0;
         runs.clear();
@@ -144,10 +159,10 @@ public final class Session {
     public Snapshot snapshot() {
         List<Run> saved=new ArrayList<>(runs);
         if(current!=null) saved.add(new Run(runMs(),current.giant,false,current.fragments,"Interrupted at save checkpoint"));
-        return new Snapshot(1,id,elapsedMs(),List.copyOf(saved),loot.snapshot());
+        return new Snapshot(1,id,elapsedMs(),List.copyOf(saved),loot.snapshot(),paused());
     }
 
-    /** Restores a stopped session. Offline time and an unfinished run are never invented. */
+    /** Explicit pauses remain resumable. An interrupted live checkpoint recovers as stopped. */
     public void restore(Snapshot s) {
         if (s == null || s.schema != 1 || s.elapsedMs < 0 || s.runs == null || s.loot == null)
             throw new IllegalArgumentException("Invalid session save");
@@ -158,8 +173,8 @@ public final class Session {
         elapsedBase = s.elapsedMs;
         runs.clear();
         runs.addAll(s.runs);
-        running = false;
+        state = s.paused && !id.isBlank() ? State.PAUSED : State.STOPPED;
         current = null;
-        confirmUntil = -1;
+        confirmUntil = Long.MIN_VALUE;
     }
 }

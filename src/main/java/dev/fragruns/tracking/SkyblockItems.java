@@ -1,6 +1,7 @@
 package dev.fragruns.tracking;
 
 import dev.fragruns.core.Signals;
+import dev.fragruns.core.HuntingShards;
 import dev.fragruns.data.ItemCatalog;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -21,6 +22,11 @@ public final class SkyblockItems {
         CompoundTag extra = root.getCompound("ExtraAttributes").orElse(root);
         String id = extra.getStringOr("id","");
         if (id.isEmpty()) return null;
+        if (id.startsWith("ATTRIBUTE_SHARD") || id.startsWith("SHARD_")) {
+            var shard = HuntingShards.byId(id);
+            if (shard == null && id.startsWith("ATTRIBUTE_SHARD")) shard = HuntingShards.byLabel(stack.getHoverName().getString());
+            if (shard != null) return new Drop(shard.productId(), shard.name()+" Shard", "", "", 0, 0, stack.getCount());
+        }
         ItemCatalog.Item item = catalog.get(id);
         String tier = item == null ? "" : item.tier();
         ItemLore lore = stack.get(DataComponents.LORE);

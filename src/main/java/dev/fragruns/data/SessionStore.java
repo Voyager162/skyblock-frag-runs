@@ -60,9 +60,9 @@ public final class SessionStore {
             }
             deleteSessionFiles(history, ARCHIVE_FILE, false);
         }
-        if (session.running()) JsonFiles.write(directory.resolve("session.json"), session.snapshot());
+        if (session.active()) JsonFiles.write(directory.resolve("session.json"), session.snapshot());
         if (Files.isDirectory(directory)) deleteSessionFiles(directory, CHECKPOINT, true);
-        if (!session.running()) {
+        if (!session.active()) {
             // Last: a failed operation remains visible and can be retried.
             Files.deleteIfExists(directory.resolve("session.json"));
             session.clearSaved();
