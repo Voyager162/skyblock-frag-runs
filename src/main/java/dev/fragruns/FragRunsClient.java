@@ -72,6 +72,8 @@ public final class FragRunsClient implements ClientModInitializer {
         });
         ClientCommandRegistrationCallback.EVENT.register((dispatcher,access)->dispatcher.register(literal("fragruns")
                 .executes(ctx->{ Minecraft.getInstance().execute(()->openDashboard(false)); return 1; })
+                .then(literal("travel").then(net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument("token",com.mojang.brigadier.arguments.StringArgumentType.word())
+                        .executes(ctx->{ tracker.clickTravel(com.mojang.brigadier.arguments.StringArgumentType.getString(ctx,"token")); return 1; })))
                 .then(literal("settings").executes(ctx->{ Minecraft.getInstance().execute(()->openDashboard(true)); return 1; }))
                 .then(literal("session").executes(ctx->{ Minecraft.getInstance().execute(this::sessionKeyPressed); return 1; }))));
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,Identifier.fromNamespaceAndPath("fragruns","hud"),

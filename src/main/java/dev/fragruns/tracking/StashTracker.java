@@ -20,7 +20,6 @@ final class StashTracker {
     private final ItemCatalog catalog;
     private final GiantDrops drops;
     private final HubStashAudit audit=new HubStashAudit();
-    final SilentStashView view;
     private final EnumMap<Giant,Integer> receipts=new EnumMap<>(Giant.class),before=new EnumMap<>(Giant.class);
     private String profile="",claimScope;
     private boolean empty,hasBaseline,lastHub,wasRunning;
@@ -29,7 +28,6 @@ final class StashTracker {
     private long manualChanged;
     StashTracker(Session session,SessionStore store,ItemCatalog catalog,GiantDrops drops) {
         this.session=session;this.store=store;this.catalog=catalog;this.drops=drops;
-        view=new SilentStashView(catalog,this::snapshot);
     }
     String scope(Minecraft mc) { return mc.player==null || profile.isEmpty()?"":mc.player.getUUID()+"/"+profile; }
     boolean collecting(long now) { return claimScope!=null || now<claimUntil; }
@@ -37,7 +35,7 @@ final class StashTracker {
     void profile(Minecraft mc,String text,long now) {
         var match=PROFILE.matcher(text);
         if (match.matches() && !profile.equals(match.group(1))) {
-            finish(mc,now);view.cancel(mc);profile=match.group(1);audit.scope(scope(mc));
+            finish(mc,now);profile=match.group(1);audit.scope(scope(mc));
             run(false);
         }
     }
@@ -52,7 +50,7 @@ final class StashTracker {
     void booked(Giant giant,int quantity) { audit.booked(session.id(),session.currentRunId(),giant,quantity); }
     void untrackedActivity() { if (audit.hasBaseline()) audit.dirtyOutsideRun(); }
     void disconnect(Minecraft mc,long now) {
-        finish(mc,now);view.reset(mc);profile="";audit.reset();claimUntil=0;lastHub=false;wasRunning=false;manualId=-1;
+        finish(mc,now);profile="";audit.reset();claimUntil=0;lastHub=false;wasRunning=false;manualId=-1;
     }
     void begin(Minecraft mc,long now) {
         if(mc.player==null) return;
@@ -89,7 +87,7 @@ final class StashTracker {
         if (claimScope!=null && now>=settleAt) finish(mc,now);
         boolean allowed=inHub && !scope(mc).isEmpty() && !collecting(now);
         boolean needed=audit.needed(session.id(),session.running());
-        view.tick(mc,allowed,needed,now);
+        // Only inspect menus the player explicitly opened. Never request or navigate a stash menu.
         if (allowed && needed && manualId>=0 && now-manualChanged>=400
                 && mc.gui.screen() instanceof AbstractContainerScreen<?> screen && screen.getMenu() instanceof ChestMenu menu
                 && menu.containerId==manualId && MaterialStashPage.title(screen.getTitle().getString())) {

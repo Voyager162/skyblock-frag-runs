@@ -17,7 +17,7 @@ class RunReportTest {
     }
     @Test void oldAndNewConfigsGetRequestedDefaultsAndDurationBounds(){
         var old=new Gson().fromJson("{\"includeSalvage\":false}",ModConfig.class);
-        assertFalse(old.warpOnGiantKill);assertFalse(old.queueSoloF7);assertTrue(old.showRunReport);
+        assertTrue(old.showWarpPrompt);assertTrue(old.showQueuePrompt);assertTrue(old.showRunReport);
         assertFalse(old.includeSalvage);assertEquals(4,old.reportSeconds);assertEquals(4,config.reportSeconds);
         old.reportSeconds=-4;old.sanitize();assertEquals(1,old.reportSeconds);
         old.reportSeconds=999;old.sanitize();assertEquals(30,old.reportSeconds);

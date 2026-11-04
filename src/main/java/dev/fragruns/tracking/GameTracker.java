@@ -12,7 +12,7 @@ import dev.fragruns.core.Session;
 import dev.fragruns.core.Signals;
 import dev.fragruns.core.StashMessages;
 import dev.fragruns.core.ModConfig;
-import dev.fragruns.core.RunActions;
+import dev.fragruns.core.RunPrompts;
 import dev.fragruns.core.RunReport;
 import dev.fragruns.data.ItemCatalog;
 import dev.fragruns.data.SessionStore;
@@ -41,9 +41,9 @@ import java.util.Set;
 public final class GameTracker {
     private final Session session;
     private final ModConfig config;
-    private final RunActions actions=new RunActions();
+    private final RunPrompts actions=new RunPrompts();
+    private boolean atHub;
     private final RunReport report=new RunReport();
-    private boolean issuingCommand;
     private final ItemCatalog catalog;
     private final PickupReconciler pickups = new PickupReconciler();
     private final PurseTracker purse = new PurseTracker();
@@ -97,7 +97,6 @@ public final class GameTracker {
     }
     public void resetTrackingBaselines() {
         actions.enter(session.currentRunId());
-        actions.dungeon(session.currentRunId(),session.giantKilled(),false,false,now());
         previousInventory.clear();
         inventoryReady = false;
         pickups.reset();
@@ -167,6 +166,7 @@ public final class GameTracker {
         if (area==Signals.Area.OTHER_FLOOR || f7 && !session.running()) stash.untrackedActivity();
         boolean hub=!f7 && !session.inDungeon() && !transferring && !presence.queued(now) && area==Signals.Area.OUTSIDE
                 && (lines.stream().anyMatch(GameTracker::stashHub) || tab.stream().anyMatch(GameTracker::stashHub));
+        atHub=hub;
         stash.tick(client,hub,now);
         location = f7 ? "The Catacombs • Floor VII" : "Outside Floor VII";
         if (!f7 && !session.inDungeon() && now-leftAt>2_000 && (tab.stream().anyMatch(GameTracker::inHub) || lines.stream().anyMatch(GameTracker::inHub))) {
@@ -209,26 +209,44 @@ public final class GameTracker {
             else if (area == Signals.Area.OUTSIDE) purse.observeOutside(balance.getAsDouble(), now,credit);
         }
         purse.flush(now,false,session.loot()::addCoins);
-        boolean available=client.gui.screen()==null && client.gui.overlay()==null && !client.player.isDeadOrDying()
-                && client.player.containerMenu==client.player.inventoryMenu && client.player.inventoryMenu.getCarried().isEmpty();
         if(!session.inDungeon()) {
             if (area==Signals.Area.OTHER_FLOOR || presence.queued(now)) actions.cancelQueue();
-            command(client,actions.hub(config.queueSoloF7,hub,available && !stash.view.busy() && !stash.collecting(now),stash.pending(),now));
-            if (hub && config.queueSoloF7 && actions.confirming(now)) SoloQueueMenu.confirm(client,actions);
+            prompt(client,actions.hub(config.showQueuePrompt,hub,now));
             return;
         }
         tickCount++;
         if(!bossPhase && !transferring && tickCount%2==0) for (Entity entity:client.level.entitiesForRendering()) giants.observe(client,entity,now,false);
         if(!inventoryReady || tickCount%2==0) scanInventory(client,now);
         settleFragments(now,false);
-        if (f7 && !bossPhase && !transferring) command(client,actions.dungeon(session.currentRunId(),
-                giants.confirmedDeath() || session.currentFragments()>0,
-                config.warpOnGiantKill,available,config.warpDelayMs,now));
+        if (f7 && !bossPhase && !transferring) prompt(client,actions.dungeon(session.currentRunId(),
+                session.giantKilled() || giants.confirmedDeath() || session.currentFragments()>0,config.showWarpPrompt));
     }
-    private void command(Minecraft client,RunActions.Action action) {
-        if (action==RunActions.Action.NONE || client.getConnection()==null) return;
-        issuingCommand=true;
-        try {client.getConnection().sendCommand(action.command);} finally {issuingCommand=false;}
+    private void prompt(Minecraft client,RunPrompts.Prompt prompt) {
+        if (prompt==null) return;
+        boolean warp=prompt.kind()==RunPrompts.Kind.WARP;
+        var link=Component.literal(warp?"[Return to Dungeon Hub]":"[Queue Floor VII]")
+                .withStyle(style->style.withColor(0xA0E1E5).withUnderlined(true)
+                        .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/fragruns travel "+prompt.token()))
+                        .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal(warp
+                                ?"Send /warp dhub. Collect your loot before clicking."
+                                :"Send /joininstance CATACOMBS_FLOOR_SEVEN. Select Solo if the server asks."))));
+        client.gui.hud.getChat().addClientSystemMessage(Component.literal("[Frag Runs] ").withColor(0xA0E1E5)
+                .append(Component.literal(warp?"Giant defeated. ":"Run finished. ").withColor(0xD8DBE5)).append(link));
+    }
+    /** Called only by an explicit client command/chat click. Ticks never send travel commands. */
+    public void clickTravel(String token) {
+        var client=Minecraft.getInstance();
+        if (client.player==null || client.getConnection()==null) return;
+        boolean ready=onHypixel(client) && session.running() && !transferring && client.level==lastLevel
+                && !client.player.isDeadOrDying() && client.gui.overlay()==null
+                && client.player.containerMenu==client.player.inventoryMenu;
+        String command=actions.click(token,ready && session.inDungeon() && config.showWarpPrompt,
+                ready && atHub && !session.inDungeon() && config.showQueuePrompt,now());
+        if (command==null) {
+            client.gui.hud.getChat().addClientSystemMessage(Component.literal("[Frag Runs] This travel link is no longer available.").withColor(0xA0E1E5));
+            return;
+        }
+        client.getConnection().sendCommand(command);
     }
 
     private void observeHuntingBox(Minecraft client, boolean eligible, long now) {
@@ -321,7 +339,7 @@ public final class GameTracker {
         if (session.currentGiant()!=null) stash.booked(session.currentGiant(),fragments.possiblyStashed(session.currentGiant()));
         stash.run(!interrupted && !session.paused());
         purse.leaveDungeon(now(), interrupted, session.loot()::addCoins);
-        actions.exit(session.currentRunId(),config.queueSoloF7 && session.running() && !interrupted,now());
+        actions.exit(session.currentRunId(),config.showQueuePrompt && session.running() && !interrupted,now());
         session.leaveDungeon(reason,interrupted || session.paused());
         if (config.showRunReport && (!interrupted || session.paused())) report.finished(session);
         if (interrupted || session.paused()) clearShardBaseline();
@@ -428,16 +446,11 @@ public final class GameTracker {
     }
     public void stashCommand(String command) {
         var mc=Minecraft.getInstance();
-        if (!issuingCommand) {
-            String first=command.strip().split("\\s+",2)[0].toLowerCase(java.util.Locale.ROOT);
-            if (Set.of("warp","hub","lobby","l","play","joininstance","joindungeon","joinkuudra","instancerequeue","requeue").contains(first))
-                actions.manualTravel();
-            if (first.equals("party") || first.equals("p")) actions.cancelQueue();
-        }
-        stash.view.command(command);
+        String first=command.strip().split("\\s+",2)[0].toLowerCase(java.util.Locale.ROOT);
+        if (Set.of("warp","hub","lobby","l","play","joininstance","joindungeon","joinkuudra","instancerequeue","requeue","party","p").contains(first))
+            actions.manualTravel();
         if (StashMessages.pickupCommand(command) && mc.player!=null && onHypixel(mc)) stash.begin(mc,now());
     }
-    public SilentStashView stashView() { return stash.view; }
     public void stashContents(int id,int size) { stash.contents(id,size); }
     public void stashSlot(int id,int slot) { stash.slot(id,slot); }
     public void serverMessage(Minecraft client, Component message) {
@@ -445,7 +458,6 @@ public final class GameTracker {
         long now=now();
         syncWorld(client, now);
         String clean=Signals.clean(message.getString());
-        actions.partyMessage(clean,now);
         stash.profile(client,clean,now);
         if (stash.claimMessage(client,message,clean,now)) return;
         var named=StashMessages.deposited(clean);
@@ -454,6 +466,8 @@ public final class GameTracker {
             if (session.running() && session.inDungeon() && !bossPhase && (watcherAwake || session.currentGiant()!=null)) {
                 String scope=stash.scope(client);
                 var items=StashChat.items(message,named,catalog);
+                if (items.isEmpty() && StashMessages.materialOverflow(clean) && !scope.isEmpty())
+                    session.stash().overflow(session.currentRunId(),scope);
                 for (var entry:items.entrySet()) {
                     var g=entry.getKey();
                     if (session.currentGiant()!=null && session.currentGiant()!=g && !session.inferredGiant()) continue;
@@ -466,9 +480,8 @@ public final class GameTracker {
         }
         var floor=Signals.announcedFloor(clean);
         presence.announce(floor,now);
-        if (floor==Signals.Area.F7) {stash.view.cancel(client);actions.cancelQueue();}
+        if (floor==Signals.Area.F7) actions.cancelQueue();
         if (clean.equals("Warping...") || clean.startsWith("Sending to server ") && clean.endsWith("...")) {
-            stash.view.cancel(client);
             actions.manualTravel();
             transferring = true;
             transferUntil=now+15_000;

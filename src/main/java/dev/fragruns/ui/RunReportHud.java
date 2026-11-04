@@ -44,7 +44,7 @@ public final class RunReportHud {
         Theme.right(g,r.giant()==null?"Giant unseen":r.giant().label,WIDTH-10,30,r.giant()==null?Theme.MUTED:r.giant().color);
         String drop=r.fragments()>0?r.fragments()+" × "+(r.giant()==null?"fragment":r.giant().fragmentName):
                 s.stash().shared(r.details().id())?"Shared stash drop":mod.store().hasStashChoice(s.id(),r.details().id())?"Stash drop • assign in log":
-                s.stash().awaiting(r.details().id())?"Checking stash…":
+                s.stash().awaiting(r.details().id())?"Stash unverified":
                 r.details().giantDefeated()?"No fragment drop":"No fragment recorded";
         Theme.fit(g,drop,10,46,WIDTH-20,r.fragments()>0?Theme.GOLD:Theme.MUTED,1);
         g.fill(10,60,WIDTH-10,61,Theme.LINE);

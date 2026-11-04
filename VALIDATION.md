@@ -1,15 +1,15 @@
-# Validation — version 1.9.1
+# Validation — version 1.10.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**179 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**171 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
 | Session | 22 | Entry/exit timing, active and paused clocks, pause/resume inside one run, double presses from either state, the inclusive 1.5-second boundary, key repeats, run statistics, partial stops, and recovery |
-| Run actions | 16 | One command per visit, all 101 warp delays including immediate dispatch, settings migration and limits, mid-run setting changes, party replies and timeouts, manual travel, paused controls, and identifying the solo option |
+| Travel prompts | 8 | One prompt per event, explicit single-use click dispatch, stale tokens, location guards, disabled settings, interrupted visits, manual travel, queue expiry and old configuration migration |
 | Timed report | 5 | Upgrading old settings, visible duration, disabling the card, early exits, run ownership, late stash and coin receipts, unpriced items and all five profit categories |
 | Accounting | 20 | Pickup/inventory reconciliation, expiring credits, exact pre-run and post-run purse balances, transaction exclusions, interrupted or late returns, coin losses, pricing, salvage, and seven-category profit breakdown |
 | Giant drops | 3 | Carried stacks reappearing across a warp or moving during a kill, matching-encounter evidence, and delayed packet/inventory delivery in both orders |
@@ -30,6 +30,20 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.10.0
+
+The final release was replayed in isolated Minecraft clients using Skyblocker 6.10.4 and 6.11.0. Each client passed 19 game assertions. The fixture simulated a full inventory, giant death, generic overflow, an exact item hover receipt, dungeon transfers, and the server's Solo menu.
+
+- Death posted a clickable chat link without sending warp, party, queue or stash commands.
+- Minecraft's actual click-event handler dispatched the registered client command and exactly one server warp. The old link was rejected after exit.
+- The hub queue link dispatched exactly one normal F7 request. The server's Solo menu remained open for the player; there were zero automatic menu clicks.
+- Generic overflow credited zero fragments and marked the result unverified. An exact fragment hover receipt credited one fragment, resolved that status and remained one after a repeated receipt.
+- Stash query count stayed at zero throughout session start, the run and hub return. Settings screenshots were checked with the pack font.
+
+These are simulated server signals, not a live Hypixel acceptance test. The user's real-server report showed the former background stash implementation could display a menu despite earlier fixture results. That implementation has been removed entirely. If the server sends no item-specific data, this release cannot identify a stashed fragment immediately. It also does not automate the Solo confirmation and is not represented as approved by Hypixel.
+
+The following sections document historical checks of earlier versions. Their automated-command and background-stash behavior is no longer shipped.
 
 ### Version 1.9.1
 

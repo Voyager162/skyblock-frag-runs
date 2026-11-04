@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.10.0
+
+- Replace automatic warp and queue actions with single-use clickable chat prompts, enabled by default.
+- Use confirmed giant encounter completion for no-drop warp prompts.
+- Remove automatic party checks, Solo menu clicks, and material stash requests.
+- Retain exact itemized stash receipts and passive manual-menu observations. Generic overflow remains unverified and never invents a fragment.
+- Retire the automatic warp delay and update Settings to explain player-controlled travel.
+- Preserve reports and saved sessions. The server may require the player to select Solo after the F7 link.
+
+
 ## 1.9.1 — Adjustable warp delay
 
 - Add a **Warp delay** control under **F9 → Settings → Run actions & report**. Choose 0–10 seconds in 0.1-second steps. New and upgraded profiles default to 1.5 seconds.

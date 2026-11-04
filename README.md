@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Version 1.9.1** lets you adjust how long the mod waits for loot before warping to the Dungeon Hub. The default is 1.5 seconds. [Validation details](VALIDATION.md)
+**Version 1.10.0** replaces automatic travel with clickable chat links and removes background stash-menu requests. [Validation details](VALIDATION.md)
 
-[Download v1.9.1](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.9.1) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.10.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.10.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Put `skyblock-frag-runs-1.9.1.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.10.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -34,15 +34,14 @@ Open **F9 → Settings → Run actions & report**.
 
 | Setting | Default | What happens |
 | --- | --- | --- |
-| Warp to Dungeon Hub | Off | During a tracked F7, a confirmed nearby Watcher giant death or a collected giant fragment arms a single `/warp dhub` after the selected loot delay. |
-| Warp delay | 1.5 seconds | Use **−** or **+** to set 0–10 seconds in 0.1-second steps. The delay starts when the kill is confirmed. Zero allows an immediate warp. |
-| Queue solo Floor VII | Off | After leaving a tracked F7, the mod waits for a stable hub, gives stash and purse updates time to arrive, and checks your party. When solo, it requests normal Floor VII and selects the server’s Solo option if prompted. A multiplayer party or unanswered party check cancels the request. |
+| Dungeon Hub link | On | A confirmed Watcher giant defeat posts a chat link. Collect your loot, open chat, and click to send `/warp dhub`. |
+| Floor VII queue link | On | After returning to the hub from a tracked F7, click the chat link to send `/joininstance CATACOMBS_FLOOR_SEVEN`. Select **Solo** yourself if the server presents its confirmation menu. |
 | Show run report | On | A HUD card shows the run number, time, giant, fragment outcome and collected profit. The detailed item list is available under **Session log → Run → Itemized loot**. |
 | Time on screen | 4 seconds | Adjust from 1 to 30 seconds. Loading screens, hidden HUD and open menus pause the display timer. |
 
 The report separates giant fragments, kill coins, dropped essence, salvage essence and other items. Bazaar quotes, sell tax and the salvage setting match the run log. Stash or purse rewards received while the card is visible update its total. An early exit gets its own report.
 
-Hypixel prohibits automated gameplay actions. Enabling automatic warp or requeue on Hypixel can result in a ban. This disclosure is also visible beside the switches in Settings. [Hypixel Allowed Modifications](https://support.hypixel.net/hc/en-us/articles/6472550754962-Hypixel-Allowed-Modifications)
+Each click sends one command. Giant deaths, ticks, and hub arrivals never send commands or click server menus. Old automatic-command settings and the warp delay are retired. Links are single-use and expire when their run or location becomes invalid. Queue links expire after two minutes. Both prompt switches are independent of the report. Hypixel has not approved this specific mod; see its [Allowed Modifications policy](https://support.hypixel.net/hc/en-us/articles/6472550754962-Hypixel-Allowed-Modifications).
 
 ## Session log
 
@@ -103,15 +102,13 @@ Probability references: [Watcher giant spawn table](https://hypixelskyblock.mine
 
 Fragment subtotals show the quantity actually credited, such as **Diamante's Handle ×1**. In **Separate by giant** mode, hover over a fragment row in **F9 → Loot & profit** to see the current Bazaar instant-sell quote per unit before tax. A giant kill confirms the encounter. A personal pickup, matching inventory gain or itemized stash reward confirms a fragment.
 
-**Full inventory and stash.** Start the session in the Dungeon Hub or Hub and give the tracker a moment to read your starting stock before entering F7. After each run, the tracker requests `/viewstash material` when you return to the hub and your screen is clear. It reads the material slots in the background while you keep control of the game. Opening the stash yourself still brings up the usual menu. [Hypixel’s stash command](https://hypixel.net/threads/skyblock-patch-0-19-1-item-linking-leveling-update-stash-qol-bug-fixes.5422629/)
+**Full inventory and stash.** The mod never requests `/viewstash`, opens a stash screen, or navigates its pages. Itemized stash notifications, including exact item hover data, can credit fragments immediately even with a full inventory. Personal pickup packets also identify actual items, and later inventory delivery is reconciled to prevent duplicate credit.
 
-The tracker compares each of the four fragment quantities separately. If three stored L.A.S.R.’s Eyes become four, the run gains one Eye. If only Young Dragon Fragments increase, the run gains zero Eyes. An itemized deposit can still confirm a drop immediately. Collecting the stash later preserves the original credit.
+A generic inventory-full notification contains no item identity. It cannot prove that a giant dropped a fragment, and another Watcher mob can produce the same notification. Such a notification never increases the fragment count; the report shows **Stash unverified** when the player/profile scope is known. Immediate exact counting is unavailable when Hypixel sends only that generic message. The mod does not infer a fragment from the giant's identity or a nearby item entity.
 
-The first complete reading on a connection establishes starting stock. If you start inside F7 or reconnect before the check finishes, existing stock alone cannot identify that run’s drops. An unfinished page or unanswered request leaves the balance unconfirmed. When multiple tracked runs fall between readings, a shared gain can appear in the session total. For a receipt spanning sessions, choose **Assign stash drop** in the earning run’s log.
+If you choose to open the material stash yourself, the tracker can compare complete single-page balances against an earlier reading on the same connection. With no starting balance, old stash stock and later withdrawals alone cannot establish new run earnings. Multi-page menus are never navigated automatically. Existing session history is preserved.
 
 **Hunting Box shards** appear under **Other items** at their individual Bazaar prices. Personal F7 capture, charm and loot-share messages can record earnings while the box is closed. To include silent gains, open the relevant box page during the session before earning the shards and revisit it in F7 or within one minute of returning. Each visible shard needs a starting balance. The tracker reconciles balance changes with observed captures and deposits. Opening a new page establishes its starting balances. Pausing resets these comparisons.
-
-The background stash check requests the material list, follows identified page controls when needed, and closes its own view. Picking up, selling, and moving materials are player actions.
 
 **Drops:** physical item pickup packets and positive inventory changes are reconciled so the same drop is counted once. Inventory is baselined on entering F7; existing items are excluded. Slot rearrangement is aggregated, container transfers are suppressed, and previously seen unique item UUIDs are excluded. This covers giant/boss/dragon fragments, spirit leaps, superboom, and other recognized drops. Loot remains in the session ledger after you sell it.
 
