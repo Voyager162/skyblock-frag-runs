@@ -2,14 +2,14 @@
 
 A client-only **Fabric 26.2** mod for SkyBlock Enhanced. Starting a session displays a movable HUD over gameplay. It does not open a screen or capture the mouse.
 
-**Version 1.10.0** replaces automatic travel with clickable chat links and removes background stash-menu requests. [Validation details](VALIDATION.md)
+**Version 1.11.0** adds route difficulty, estimated skill, and configurable session luck scores. [Validation details](VALIDATION.md)
 
-[Download v1.10.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.10.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
+[Download v1.11.0](https://github.com/Voyager162/skyblock-frag-runs/releases/tag/v1.11.0) · [Report an issue](https://github.com/Voyager162/skyblock-frag-runs/issues)
 
 ## Install
 
 1. Close the Minecraft instance.
-2. Put `skyblock-frag-runs-1.10.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
+2. Put `skyblock-frag-runs-1.11.0.jar` in the **mods** folder of your **Minecraft 26.2** SkyBlock Enhanced instance. Replace the previous Frag Runs JAR and keep the profile's configuration folder to retain sessions and settings.
 3. Launch the instance. Fabric API is already included in the pack. Do not install the `-sources.jar`.
 
 Targets Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.161.0 or newer, and Java 25. The tested pack uses Loader 0.19.5 and Fabric API 0.161.0+26.2. Mod Menu integration is optional. The mod has no dependency on SkyblockAddons, Skyblocker, SkyHanni, or Odin.
@@ -42,6 +42,18 @@ Open **F9 → Settings → Run actions & report**.
 The report separates giant fragments, kill coins, dropped essence, salvage essence and other items. Bazaar quotes, sell tax and the salvage setting match the run log. Stash or purse rewards received while the card is visible update its total. An early exit gets its own report.
 
 Each click sends one command. Giant deaths, ticks, and hub arrivals never send commands or click server menus. Old automatic-command settings and the warp delay are retired. Links are single-use and expire when their run or location becomes invalid. Queue links expire after two minutes. Both prompt switches are independent of the report. Hypixel has not approved this specific mod; see its [Allowed Modifications policy](https://support.hypixel.net/hc/en-us/articles/6472550754962-Hypixel-Allowed-Modifications).
+
+## Run grades and session luck
+
+The end-of-run card and **Session log → Run** show difficulty and estimated skill out of 10. The map must contain a connected Entrance-to-Blood route. New StellaNav recordings preserve room types even with room names hidden. Incomplete maps, raw map images, and older recordings without identifiable endpoints show **Unavailable** instead of invented grades.
+
+Difficulty uses the least-cost mapped route to Blood, excluding Entrance and Blood itself. Each intermediate room contributes 1 point of effort, plus 0.5 per additional room tile. Side branches do not count. Difficulty is `min(10, 1 + 9 × effort / 12)`. Two small rooms score 2.5; eight small rooms score 7.0. Large rooms increase the score.
+
+Skill is an estimate using the full recorded run time, including combat and time before leaving. A reference time of `25 + 8 × effort` seconds earns 5/10; half that time earns 10/10. The score is `min(10, 5 × reference time / actual time)`. Early exits and zero-duration runs have no skill grade. These are transparent heuristic grades, not a measured player ranking.
+
+**F9 → Settings → HUD sections → Session luck** toggles the new HUD row (on by default). 50/100 is neutral. The model assumes equal 25% giant shares and a 50% fragment chance. L.A.S.R. has a preference weight of 1, Diamante 0.8, and the others 0. Spawn luck supplies 65% of the signal; above/below-50% confirmed drop frequency supplies 35%. Eight prior trials damp small samples, and a bounded tanh scale maps the combined deviation to 0–100. No-drop and early runs never become earned fragments. Unverified/shared stash outcomes are excluded from drop-frequency grading. Luck is a preference-weighted estimate, not a probability or percentile.
+
+Stash notifications now leave a bounded `Stash receipt evidence` entry in the local game log, retaining original hover details before chat filters. No menu or command is used. This provides evidence for investigating unresolved full-inventory drops; it does not claim a new universal stash feed.
 
 ## Session log
 

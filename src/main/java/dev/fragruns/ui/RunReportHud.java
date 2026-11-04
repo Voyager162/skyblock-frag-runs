@@ -17,7 +17,7 @@ public final class RunReportHud {
         Session.Run r=report.showing(s);
         if (r==null) return;
         var value=report.valuation(r,mod.market().prices().values(),mod.config());
-        int height=value.unpriced()>0?192:180;
+        int height=value.unpriced()>0?222:210;
         var window=mc.getWindow();
         int vw=window.getGuiScaledWidth(),vh=window.getGuiScaledHeight();
         float scale=(float)Math.min(1.0,Math.min((vw-12.0)/(WIDTH*1.75),(vh-34.0)/height));
@@ -47,14 +47,19 @@ public final class RunReportHud {
                 s.stash().awaiting(r.details().id())?"Stash unverified":
                 r.details().giantDefeated()?"No fragment drop":"No fragment recorded";
         Theme.fit(g,drop,10,46,WIDTH-20,r.fragments()>0?Theme.GOLD:Theme.MUTED,1);
-        g.fill(10,60,WIDTH-10,61,Theme.LINE);
-        Theme.text(g,"RUN PROFIT",10,67,Theme.BLUE);
-        row(g,"Giant fragments",value.fragmentValues().values().stream().mapToDouble(Double::doubleValue).sum(),82);
-        row(g,"Kill coins",value.coins(),95);
-        row(g,"Dropped essence",value.directEssence(),108);
-        row(g,"Salvage essence",value.salvage(),121);
-        row(g,"Other items",value.otherItems(),134);
-        if (value.unpriced()>0) Theme.text(g,value.unpriced()+" unpriced loot "+(value.unpriced()==1?"lot":"lots"),10,148,Theme.MUTED);
+        var grade=mod.maps().grade(r);
+        Theme.text(g,"Difficulty",10,61,Theme.MUTED);
+        Theme.right(g,grade==null?"Map incomplete":grade.difficultyText(),WIDTH-10,61,Theme.BLUE);
+        Theme.text(g,"Skill (estimate)",10,75,Theme.MUTED);
+        Theme.right(g,grade==null?"Unavailable":grade.skillText(),WIDTH-10,75,Theme.BLUE);
+        g.fill(10,90,WIDTH-10,91,Theme.LINE);
+        Theme.text(g,"RUN PROFIT",10,97,Theme.BLUE);
+        row(g,"Giant fragments",value.fragmentValues().values().stream().mapToDouble(Double::doubleValue).sum(),112);
+        row(g,"Kill coins",value.coins(),125);
+        row(g,"Dropped essence",value.directEssence(),138);
+        row(g,"Salvage essence",value.salvage(),151);
+        row(g,"Other items",value.otherItems(),164);
+        if (value.unpriced()>0) Theme.text(g,value.unpriced()+" unpriced loot "+(value.unpriced()==1?"lot":"lots"),10,178,Theme.MUTED);
         int totalY=height-21;
         Theme.round(g,6,totalY-6,WIDTH-12,24,0xFF2C3040);
         Theme.text(g,"Total profit",12,totalY+2,Theme.GOLD);

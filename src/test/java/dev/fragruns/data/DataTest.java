@@ -75,7 +75,7 @@ class DataTest {
         Files.writeString(directory.resolve("settings.json"),"{\"hud\":{\"x\":0.15,\"y\":0.64,\"scale\":0.55},\"expectedFragmentProfit\":false}");
         var store = new SessionStore(directory);
         var config = store.loadConfig();
-        assertEquals(9,config.hudSections.content().blocks().size());
+        assertEquals(10,config.hudSections.content().blocks().size());
         assertFalse(config.hudSections.combinedFragments());
         config.hudSections.toggle(dev.fragruns.core.HudSettings.Section.PROFIT_BREAKDOWN);
         config.hudSections.toggle(dev.fragruns.core.HudSettings.Section.HEADER);

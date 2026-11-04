@@ -1,10 +1,10 @@
-# Validation — version 1.10.0
+# Validation — version 1.11.0
 
 Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabric API 0.161.0+26.2. Build command: `gradle test build --no-daemon` using the pinned Gradle 9.5.1 and Loom 1.17.17.
 
 ## Automated checks
 
-**171 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
+**176 tests passed, zero failures, zero errors.** The full report is `build/reports/tests/test/index.html`.
 
 | Area | Tests | Coverage |
 | --- | ---: | --- |
@@ -21,7 +21,7 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 | Dungeon presence | 7 | Queue and destination confirmation, stale return sidebars, zero-, 600- and 800-millisecond transfer flickers, genuine short runs, mid-session starts, requeues, Master Mode and cancelled entries |
 | Essence | 6 | Hub-balance parsing, chat and salvage deductions, partial balances and a single return balance spanning two runs |
 | Layout | 9 | Seven viewport sizes from 320×240 through 3440×1440, multiple scales and anchors, invalid settings, clamping, coordinate round trips |
-| HUD sections | 3 | All 512 visibility selections in each fragment mode, smaller bounds at constrained resolutions, compact resizing, and a fully hidden HUD |
+| HUD sections | 3 | All 1,024 visibility selections in each fragment mode, smaller bounds at constrained resolutions, compact resizing, and a fully hidden HUD |
 | Fragment display | 1 | The combined subtotal matches the separate rows across price updates, taxed sales, NPC fallback, and an unpriced fragment |
 | Signals | 15 | Formatted scoreboard/chat parsing, exact F7 recognition, other-floor/Master Mode rejection, purse precision, essence messages, transaction exclusions |
 | Data | 18 | Bazaar orders, catalog and salvage, settings and HUD migration, display preferences surviving reload, save recovery, history clearing, and pause persistence |
@@ -30,6 +30,16 @@ Checked on Windows with Minecraft 26.2, Java 25, Fabric Loader 0.19.5, and Fabri
 The seven profit categories use the same valuation as the total. The accounting checks confirm that four giant-fragment subtotals plus all essence, kill coins, and other items equal that total. Bonzo/Livid/dragon fragments and Spirit Leaps are grouped under other items. Found essence and estimated salvage are grouped together; disabling salvage changes gear valuation without adding both values.
 
 ## Modpack and rendering checks
+
+### Version 1.11.0
+
+Five new scoring tests cover room size, time normalization, incomplete routes, partial and zero-length runs, map JSON compatibility, giant preference weights, drop frequency and unverified stash outcomes. Existing HUD tests enumerate all 1,024 section combinations in both fragment display modes. The old-settings migration test now expects ten HUD sections.
+
+The packaged mod passes 22 game assertions in each isolated pack configuration (Skyblocker 6.10.4 and 6.11.0). The fixture stores a connected map with a two-tile room and verifies one route room, a visible report grade, and increased session luck after an exact Eye receipt. Screenshots cover the report, run review, and HUD settings. Earlier clickable-command and no-stash-popup checks are retained.
+
+StellaNav 1.0.6's installed RoomType enum was inspected to verify ENTRANCE and BLOOD identifiers. Room type metadata is now saved independently of configured label visibility. Scores need a connected schematic; raw map pixels and older unidentified endpoints remain ungraded.
+
+The stash investigation inspected SkyHanni's public ItemAddManager and ItemPickupLog. Those paths use inventory gains, sack changes and shard events; they did not establish a separate passive stash-content feed. Bounded original stash-component diagnostics were added for future real-server evidence. No new generic-overflow inference or automatic menu request was introduced. Live Hypixel verification is still outstanding.
 
 ### Version 1.10.0
 

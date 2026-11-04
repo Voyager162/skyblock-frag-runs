@@ -466,14 +466,17 @@ public final class GameTracker {
             if (session.running() && session.inDungeon() && !bossPhase && (watcherAwake || session.currentGiant()!=null)) {
                 String scope=stash.scope(client);
                 var items=StashChat.items(message,named,catalog);
-                if (items.isEmpty() && StashMessages.materialOverflow(clean) && !scope.isEmpty())
-                    session.stash().overflow(session.currentRunId(),scope);
+                String evidence=message.toString();
+                org.slf4j.LoggerFactory.getLogger("fragruns").info("Stash receipt evidence: items={}, component={}",items,
+                        evidence.substring(0,Math.min(evidence.length(),4096)));
+                if (items.isEmpty() && StashMessages.materialOverflow(clean))
+                    session.stash().overflow(session.currentRunId(),scope.isEmpty()?client.player.getUUID()+"/unscoped":scope);
                 for (var entry:items.entrySet()) {
                     var g=entry.getKey();
                     if (session.currentGiant()!=null && session.currentGiant()!=g && !session.inferredGiant()) continue;
                     creditFragment(g,fragments.stashed(g,entry.getValue()));
                     stash.booked(g,entry.getValue());
-                    if (!scope.isEmpty()) session.stash().deposited(session.currentRunId(),scope,entry.getValue());
+                    session.stash().deposited(session.currentRunId(),scope.isEmpty()?client.player.getUUID()+"/unscoped":scope,entry.getValue());
                 }
             }
             return;

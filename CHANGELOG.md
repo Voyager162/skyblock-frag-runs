@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.11.0
+
+- Add mapped route difficulty and time-adjusted estimated skill to reports and run review.
+- Preserve room types for scoring independently of map label settings.
+- Add a modular session luck HUD row, with L.A.S.R./Diamante preference and confirmed drop frequency.
+- Exclude unknown stash outcomes from failed-drop luck grading, even before profile identification.
+- Add passive, bounded stash receipt diagnostics without opening menus or sending commands.
+
+
 ## 1.10.0
 
 - Replace automatic warp and queue actions with single-use clickable chat prompts, enabled by default.

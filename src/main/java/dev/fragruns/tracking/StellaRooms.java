@@ -75,7 +75,7 @@ public final class StellaRooms {
             String mark=checks?state.name():"NONE";
             Object label=setting(puzzle?"getPuzzleName":"getRoomName")?get(room,"getName"):null;
             if (!(boolean)get(room,"getExplored")) color=color.darker();
-            rooms.add(new DungeonLayout.Room(List.copyOf(cells),color.getRGB(),Objects.toString(label,""),mark));
+            rooms.add(new DungeonLayout.Room(List.copyOf(cells),color.getRGB(),Objects.toString(label,""),mark,((Enum<?>)type).name()));
         }
         if (rooms.isEmpty()) return null;
         rooms.sort(Comparator.comparingInt(r->r.tiles().getFirst()));

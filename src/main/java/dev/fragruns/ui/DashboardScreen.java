@@ -232,13 +232,13 @@ public final class DashboardScreen extends Screen {
         sectionSwitch(g,289,141,Section.PROFIT_BREAKDOWN);
         sectionSwitch(g,289,169,Section.TOTAL_PROFIT);
         sectionSwitch(g,289,197,Section.HOURLY_PROFIT);
-        g.fill(289,229,521,230,Theme.LINE);
-        Theme.text(g,"GIANT FRAGMENT PROFIT",289,241,Theme.BLUE);
-        button(g,289,258,232,22,settings.combinedFragments()?"One combined total":"Separate by giant",Theme.BLUE,()->{
+        sectionSwitch(g,289,225,Section.SESSION_LUCK);
+        Theme.text(g,"GIANT FRAGMENT PROFIT",289,253,Theme.BLUE);
+        button(g,289,268,232,22,settings.combinedFragments()?"One combined total":"Separate by giant",Theme.BLUE,()->{
             settings.toggleFragmentGrouping();
             mod.saveConfig();
         },"Switch between four collected fragment subtotals and their sum.",false);
-        Theme.fit(g,"Applies to HUD and Loot & profit.",289,292,232,Theme.MUTED,0.9f);
+        Theme.fit(g,"Applies to HUD and Loot & profit.",289,299,232,Theme.MUTED,0.9f);
     }
     private void settingsBack(GuiGraphicsExtractor g) {
         button(g,14,82,90,20,"‹ Settings",Theme.BLUE,()->{settingsView=SettingsView.GENERAL;focus=-1;},"Return to general settings.",false);

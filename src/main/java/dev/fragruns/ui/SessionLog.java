@@ -247,7 +247,9 @@ final class SessionLog {
             Theme.text(g,"Per-run profit wasn't recorded.",25,219,Theme.MUTED);
             Theme.fit(g,"See the session's Loot & profit for its totals.",25,239,264,Theme.MUTED,1);
         }
-        map(g,r,313,82,223,236,false);
+        map(g,r,313,82,223,212,false);
+        var grade=mod.maps().grade(r);
+        Theme.fit(g,"Difficulty  "+(grade==null?"Unavailable":grade.difficultyText())+"   Skill  "+(grade==null?"Unavailable":grade.skillText()),321,303,208,Theme.BLUE,1);
     }
     private static void line(GuiGraphicsExtractor g,int y,String label,String value,int color) {
         Theme.text(g,label,25,y,Theme.MUTED);
@@ -256,7 +258,7 @@ final class SessionLog {
     private void map(GuiGraphicsExtractor g,Session.Run r,int x,int y,int width,int height,boolean large) {
         Theme.panel(g,x,y,width,height); Theme.text(g,"DUNGEON MAP",x+11,y+12,Theme.BLUE);
         if (r.details()!=null && diagram==null && (!attempted || System.nanoTime()>=retryMapAt)) loadMap(r.details().id());
-        int size=large?200:190, cx=x+width/2, top=y+29;
+        int size=large?200:Math.min(190,height-38), cx=x+width/2, top=y+29;
         Theme.round(g,cx-size/2-2,top-2,size+4,size+4,0xFF151823);
         if (diagram!=null) diagram.draw(g,cx-size/2,top,size);
         else {

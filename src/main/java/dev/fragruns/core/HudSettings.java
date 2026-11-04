@@ -18,6 +18,7 @@ public final class HudSettings {
         RUN_TIMER("Current run timer", "Time spent in the current Floor VII run.", Group.SESSION),
         RUN_RECORDS("Run time records", "Fastest, slowest, last and average run times.", Group.RUNS),
         RUN_COUNTS("Run counts", "Total, finished and early runs.", Group.RUNS),
+        SESSION_LUCK("Session luck", "0-100 estimate. 50 is expected; unverified stash drops are excluded.", Group.RUNS),
         WATCHER_GIANTS("Watcher giants", "Encounters, giant shares, fragment quantities and drop rates.", Group.GIANTS),
         PROFIT_BREAKDOWN("Profit breakdown", "Fragment income, essence, kill coins and other items.", Group.BREAKDOWN),
         TOTAL_PROFIT("Total profit", "The value of all collected loot and coins.", Group.TOTALS),
@@ -33,7 +34,7 @@ public final class HudSettings {
         private int height(boolean combined) {
             return switch (this) {
                 case HEADER -> 16;
-                case SESSION_TIMER, RUN_TIMER, TOTAL_PROFIT, HOURLY_PROFIT -> FONT;
+                case SESSION_LUCK, SESSION_TIMER, RUN_TIMER, TOTAL_PROFIT, HOURLY_PROFIT -> FONT;
                 case RUN_RECORDS -> 3 * ROW + FONT;
                 case RUN_COUNTS -> ROW + FONT;
                 case WATCHER_GIANTS -> (GIANTS - 1) * GIANT_ROW + DROP_OFFSET + FONT;

@@ -17,6 +17,8 @@ public final class RunMapRecorder implements AutoCloseable {
     private final Session session;
     private final RunMaps files;
     private final ExecutorService writer=Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().name("Frag Runs map writer").factory());
+    private final Map<UUID,DungeonLayout> cached=new LinkedHashMap<>();
+    private final Map<UUID,Long> retryGrade=new HashMap<>();
     private StellaRooms stella;
     private boolean lookup=true;
     private UUID run;
@@ -36,12 +38,28 @@ public final class RunMapRecorder implements AutoCloseable {
         if (layout==null || best!=null && best.schematic() && layout.tileCount()<best.tileCount()) return;
         long generation=files.generation();
         if (layout.equals(best) && lastGeneration==generation && !run.equals(failed)) return;
+        cached.put(run,layout);
+        if(cached.size()>32) cached.remove(cached.keySet().iterator().next());
         best=layout; failed=null; lastGeneration=generation;
         UUID id=run; DungeonLayout snapshot=layout;
         writer.execute(()->{
             try { files.save(id,generation,snapshot); }
             catch (java.io.IOException e) { failed=id; LoggerFactory.getLogger("fragruns").warn("Could not save run layout",e); }
         });
+    }
+    public dev.fragruns.core.RunGrades.Grade grade(Session.Run r) {
+        if(r.details()==null)return null;
+        UUID id=r.details().id();
+        if(!cached.containsKey(id)) {
+            long now=System.nanoTime();
+            if(now<retryGrade.getOrDefault(id,0L))return null;
+            try { cached.put(id,files.read(id)); } catch(java.io.IOException | RuntimeException e) {
+                if(retryGrade.size()>32)retryGrade.clear();
+                retryGrade.put(id,now+5_000_000_000L);return null;
+            }
+            if(cached.size()>32)cached.remove(cached.keySet().iterator().next());
+        }
+        return dev.fragruns.core.RunGrades.score(cached.get(id),r.milliseconds(),r.completed());
     }
     private DungeonLayout stella(Minecraft mc) {
         try {

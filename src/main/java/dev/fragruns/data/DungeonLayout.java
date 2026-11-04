@@ -5,7 +5,8 @@ import java.util.List;
 
 /** Map-space data only. Coordinates are independent of the world camera, HUD and GUI scale. */
 public record DungeonLayout(int version,String palette,List<Room> rooms,List<Door> doors,List<Marker> markers) {
-    public record Room(List<Integer> tiles,int color,String name,String mark) {
+    public record Room(List<Integer> tiles,int color,String name,String mark,String type) {
+        public Room(List<Integer> tiles,int color,String name,String mark) { this(tiles,color,name,mark,""); }
         public Room {
             tiles=List.copyOf(tiles);
             if (tiles.isEmpty() || tiles.size()>36 || tiles.stream().anyMatch(i->i<0 || i>=36))

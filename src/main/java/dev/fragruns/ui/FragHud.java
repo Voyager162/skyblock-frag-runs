@@ -62,6 +62,7 @@ public final class FragHud {
                     int finished = s.completedRuns();
                     Theme.fit(g, finished+" finished • "+(s.totalRuns()-finished)+" early", 10, y+ROW, WIDTH-20, Theme.MUTED, 1);
                 }
+                case SESSION_LUCK -> row(g,"Session luck",dev.fragruns.core.RunGrades.luck(s)+" / 100",y,Theme.BLUE);
                 case WATCHER_GIANTS -> giants(g, s, y);
                 case PROFIT_BREAKDOWN -> breakdown(g, s.loot(), profit, settings.combinedFragments(), y);
                 case TOTAL_PROFIT -> row(g, "Est. profit", Theme.coins(profit.total()), y, Theme.GOLD);
